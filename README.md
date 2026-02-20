@@ -1,84 +1,100 @@
 # eXmerg
 
-Lokale Webanwendung zum **Mergen von Excel/ODS- und ODG-Dateien**. Skalierbares Grundgerüst für spätere Erweiterungen.
+Lokale Webanwendung zum **Zusammenführen von Excel- und ODS-Dateien**. Mehrere Tabellendateien können in verschiedenen Modi zu einer Ausgabe zusammengeführt werden – inklusive Formatierung, Konsolidierung und optionaler Sheet-Auswahl bzw. Filterung.
 
 ## Tech-Stack
 
-- **Frontend:** React, TypeScript, Vite, TailwindCSS, React Query, Zustand
+- **Frontend:** React, TypeScript, Vite, TailwindCSS, Zustand
 - **Backend:** Node.js, Express, TypeScript
 - **Gemeinsam:** Shared-Package mit Types und Utils
 
 ## Setup
 
 ```bash
-# Im Projektroot
+# Im Projektroot (installiert alle Workspaces: client, server, shared)
 npm install
 ```
 
-## Dev-Start
+## Entwicklung
 
-Client und Server parallel starten (Client Port **3002**, Server Port **3003**):
+Client und Server parallel starten (Client **3002**, Server **3003**):
 
 ```bash
 npm run dev
 ```
 
-Dann im Browser: **http://localhost:3002**
+Im Browser: **http://localhost:3002**
 
-- Der Vite-Dev-Server proxied `/api` an den Backend-Server (Port 3003).
+- Der Vite-Dev-Server proxied `/api` an den Backend-Server.
+
+## Build (Produktion)
+
+```bash
+npm run build
+```
+
+- Baut nacheinander: `shared` → `server` → `client`
+- Client-Build liegt in `client/dist/` und kann statisch (z. B. per Nginx) ausgeliefert werden.
 
 ## Projektstruktur
 
 ```
 eXmerg/
-├── client/          # React SPA (Vite, Port 3002)
+├── client/              # React SPA (Vite, Port 3002)
+│   ├── src/
+│   │   ├── api/         # API-Client (Sheets, Merge)
+│   │   ├── components/  # Upload, FileList, MergeOptions, ActionBar, …
+│   │   ├── store/       # Zustand (Dateien, Merge-Optionen, UI-State)
+│   │   └── utils/       # z. B. Sheet-Selection-Preview
+│   └── dist/            # Statischer Build (nach npm run build)
+├── server/              # Express API (Port 3003)
 │   └── src/
-│       ├── api/      # API-Client (preview, merge)
-│       ├── components/
-│       ├── pages/
-│       └── store/    # Zustand (UI-State)
-├── server/          # Express API (Port 3003)
+│       ├── config/      # Limits, Port, Upload-Pfad
+│       ├── processing/  # Excel/ODS parsen, copySheet, parseOds
+│       ├── routes/      # /api/upload, /api/sheets, /api/merge, …
+│       ├── services/    # mergeService (collectSheetSources, Merge-Modi)
+│       └── workers/     # Merge-Worker (isoliert, OOM-sicher)
+├── shared/              # Gemeinsame Types & Utils
 │   └── src/
-│       ├── config/
-│       ├── middleware/
-│       ├── processing/  # Excel/ODS Preview, Read, ODG Merge
-│       ├── routes/
-│       └── services/   # Merge-Strategien, MergeService
-├── shared/          # Gemeinsame Types & Utils
-│   └── src/
-│       ├── types/
+│       ├── types/       # MergeMode, MergeOptions, SheetNameFilter, …
 │       └── utils/
 ├── docs/
 │   └── ARCHITEKTUR.md
-└── package.json     # Workspace-Root, Script: dev
+└── package.json         # Workspace-Root, Scripts: dev, build
 ```
 
 ## Unterstützte Formate
 
-- **Tabellen:** `.xlsx`, `.xls`, `.ods`
-- **Zeichnungen:** `.odg`
+- **Tabellen:** `.xlsx`, `.xls`, `.ods` (Ein- und Ausgabe)
+- Ausgabeformat wählbar: **.xlsx** oder **.ods**
 
-## Merge-Modi (Excel/ODS)
+## Merge-Modi (Tabellen)
 
-| Modus | Beschreibung |
-|-------|--------------|
-| **A – Alle in eine Tabelle** | Alle Dateien werden in ein Sheet geschrieben. Spalten-Union; fehlende Werte leer. |
-| **B – Eine Datei = ein Sheet** | Jede Datei wird zu einem eigenen Sheet. Sheetname = ursprünglicher Dateiname. |
-| **C – Alle + Herkunftsspalte** | Wie A, mit zusätzlicher Spalte `source_file` pro Zeile. |
-| **D – Sheet-weises Mergen** | Sheets mit gleichem Namen aus verschiedenen Dateien werden zusammengeführt. |
+| Modus | Kurzbeschreibung |
+|-------|-------------------|
+| **Eine Datei = ein Sheet** | Jede Quelldatei wird zu einem eigenen Sheet; Sheetname = Dateiname (bzw. Dateiname + Sheetname bei mehreren Sheets). |
+| **Konsolidierung + Einzelne Sheets** | Erstes Sheet = Zusammenfassung (Zelladressgenau summiert), danach jedes Quell-Sheet als eigenes Sheet. |
+| **Alles in eine Tabelle** | Alle Quell-Sheets werden untereinander in ein einziges Sheet gestapelt (Formatierung erhalten). |
+| **Mit Herkunftsspalte** | Wie „Alles in eine Tabelle“, mit zusätzlicher Spalte links mit Datei-/Sheet-Herkunft. |
+| **Zeilenmatrix** | Jede Quelle = eine Zeile, Spalten = Zellreferenzen (A1, B1, …). |
+| **Zeilenmatrix mit Summen** | Wie Zeilenmatrix, plus Gesamt-Zeile mit Spaltensummen. |
 
-## ODG-Merge (MVP)
+Alle Modi verarbeiten **alle Sheets** jeder Datei (nicht nur das erste). Die Reihenfolge der Dateien entspricht der gewählten Sortierung (z. B. Upload-Reihenfolge oder nach Dateiname).
 
-- Nur `.odg`-Dateien auswählen.
-- Dokumente werden hintereinander zusammengeführt (Architektur für spätere Layout-Optionen vorbereitet).
+## Sheet-Auswahl & Filter
+
+- **Modus:** „Alle Sheets“ oder „Nur erstes Sheet“ pro Datei.
+- **Pro Datei:** In der Dateiliste können pro Datei einzelne Sheets an- oder abgewählt werden (leer = alle).
+- **Filter nach Namen:** Optional nur bestimmte Sheets einbeziehen oder ausschließen (exact / contains / RegEx, optional case-sensitive).
+- **Live-Vorschau:** Global „X von Y Sheets ausgewählt“ und pro Datei Badge (z. B. 6/7) mit Farbcodierung (grau / blau / grün).
 
 ## Ablauf
 
-1. **Upload:** Drag & Drop oder Dateiauswahl (Multi-File, Validierung Format/Größe).
-2. **Vorschau:** „Vorschau laden“ → Sheet-Metadaten und Tabellen-Sample (für .xlsx).
-3. **Merge-Optionen:** Modus wählen (bei Tabellen).
-4. **Zusammenführen:** Merge starten → Fortschritt/Disabled-State → Erfolg/Fehler.
-5. **Download:** Ergebnis als `.xlsx` (Tabellen) oder `.odg` (Zeichnungen) herunterladen.
+1. **Dateien:** Drag & Drop oder Auswahl (Validierung Format/Größe).
+2. **Reihenfolge:** Sortierung z. B. nach Upload, Dateiname, Datum.
+3. **Sheets:** Optional pro Datei Sheets auswählen; optional nur erstes Sheet oder Namenfilter.
+4. **Merge-Optionen:** Modus und Ausgabeformat (.xlsx / .ods) wählen.
+5. **Zusammenführen:** Merge starten → Fortschritt → Download der Ergebnisdatei.
 
 ## Konfiguration (Backend)
 
@@ -89,9 +105,13 @@ eXmerg/
 - `MAX_FILE_SIZE_BYTES` – Max. Dateigröße pro Datei
 - `MAX_FILES_PER_REQUEST` – Max. Anzahl Dateien pro Request
 
-## Erweiterbarkeit (vorbereitet)
+## Deployment (z. B. Nginx)
 
-- **Worker-Queue:** Service-Layer so angelegt, dass große Merges später in eine Job-Queue ausgelagert werden können.
-- **Presets:** Merge-Optionen sind serialisierbar; Persistenz (z. B. DB) kann ergänzt werden.
-- **Weitere Ausgabeformate:** Export über `outputType` erweiterbar.
-- **Deployment:** ENV-basierte Config; Client-Build statisch auslieferbar.
+- **Client:** Statische Dateien aus `client/dist/` ausliefern (Root oder Unterpfad).
+- **API:** Proxy von `/api` auf den Node-Server (z. B. Port 3003).
+- Backend mit `node server/dist/index.js` (oder PM2) starten; Umgebungsvariablen setzen.
+
+## Weitere Hinweise
+
+- **Worker:** Große Merges laufen in einem separaten Worker-Prozess (speicherbewusst).
+- **ODG:** Zeichnungen (`.odg`) können in einer eigenen Pipeline zusammengeführt werden (siehe Architektur).
