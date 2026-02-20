@@ -496,6 +496,7 @@ router.post(
         );
         job.kill = kill;
 
+        // Download-URL erst nach Worker-Ende → writeFile ist abgeschlossen, Datei vollständig
         const { warnings } = await promise;
 
         const finalFileId = isOds ? xlsxFileId.replace('.xlsx', '.ods') : xlsxFileId;
@@ -580,7 +581,6 @@ router.get(
       res.status(403).json({ success: false, error: 'Ungültiger Pfad.' });
       return;
     }
-    console.log('DOWNLOAD PATH:', fullPath);
     let stat: Awaited<ReturnType<typeof fs.stat>>;
     try {
       stat = await fs.stat(fullPath);
@@ -592,7 +592,8 @@ router.get(
       res.status(404).json({ success: false, error: 'Datei nicht gefunden.' });
       return;
     }
-    console.log('DOWNLOAD FILE SIZE:', stat.size);
+    console.log('[download] path:', fullPath);
+    console.log('[download] size:', stat.size);
 
     const isOdsFmt = (req.query.fmt as string) === 'ods' || name.endsWith('.ods');
     const contentType = isOdsFmt
@@ -604,7 +605,11 @@ router.get(
     res.setHeader('Content-Length', String(stat.size));
 
     let sendSucceeded = true;
+    let sentBytes = 0;
     const stream = createReadStream(fullPath);
+    stream.on('data', (chunk: Buffer | string) => {
+      sentBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk, 'utf8') : chunk.length;
+    });
     stream.on('error', (err) => {
       sendSucceeded = false;
       console.error('DOWNLOAD STREAM ERROR:', fullPath, err.message);
@@ -613,6 +618,10 @@ router.get(
     });
 
     res.on('finish', () => {
+      console.log('[download] sent bytes:', sentBytes);
+      if (sentBytes < stat.size) {
+        console.warn('[download] WARNING: sent bytes < file size, file may be truncated');
+      }
       if (!sendSucceeded) return;
       fs.unlink(fullPath)
         .then(() => {

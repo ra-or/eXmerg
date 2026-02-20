@@ -86,7 +86,15 @@ try {
       const xlsxBuf = await readFile(payload.outputFilePath);
       const wb = XLSX.read(xlsxBuf, { type: 'buffer', cellStyles: true });
       const odsBuf = XLSX.write(wb, { bookType: 'ods', type: 'buffer' });
-      const buf = Buffer.isBuffer(odsBuf) ? odsBuf : Buffer.from(odsBuf as ArrayBufferView | ArrayBuffer);
+      let buf: Buffer;
+      if (Buffer.isBuffer(odsBuf)) {
+        buf = odsBuf;
+      } else if (odsBuf instanceof ArrayBuffer) {
+        buf = Buffer.from(odsBuf);
+      } else {
+        const view = odsBuf as ArrayBufferView;
+        buf = Buffer.from(view.buffer, view.byteOffset, view.byteLength);
+      }
       await writeFile(odsPath, buf);
       await unlink(payload.outputFilePath);
     }
@@ -94,7 +102,17 @@ try {
 
   try {
     const st = await stat(finalOutputPath);
-    console.log('OUTPUT FILE EXISTS, SIZE:', st.size);
+    console.log('[merge] output exists:', finalOutputPath);
+    console.log('[merge] size:', st.size);
+    if (payload.options.outputFormat !== 'ods') {
+      console.log('[merge] XLSX final size:', st.size);
+      const unzipResult = spawnSync('unzip', ['-t', finalOutputPath], { encoding: 'utf8', timeout: 30_000 });
+      if (unzipResult.status === 0) {
+        console.log('[merge] unzip -t OK');
+      } else {
+        console.error('[merge] unzip -t FAILED (exit', unzipResult.status + '):', (unzipResult.stderr || unzipResult.stdout || '').slice(0, 500));
+      }
+    }
   } catch (e) {
     console.error('OUTPUT FILE MISSING OR UNREADABLE:', finalOutputPath, e);
   }

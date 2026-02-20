@@ -20,6 +20,9 @@ RUN npm run build && npm prune --omit=dev
 # ─── Stage 2: Runtime (nur Backend) ─────────────────────────────────────────
 FROM node:20-alpine AS runtime
 
+# Temporär: unzip für Datei-Integritätscheck (unzip -t <xlsx> im Container)
+RUN apk add --no-cache unzip
+
 ENV NODE_ENV=production
 
 WORKDIR /app

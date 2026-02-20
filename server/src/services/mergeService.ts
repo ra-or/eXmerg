@@ -312,6 +312,32 @@ function makeSheetNameUnique(base: string, used: Set<string>): string {
   return safe;
 }
 
+/**
+ * Schreibt ein Workbook als XLSX auf Disk.
+ * Nutzt writeBuffer + fs.writeFile für zuverlässige, vollständige Dateien (insb. in Docker).
+ */
+async function writeWorkbookToFile(workbook: ExcelJS.Workbook, outputFilePath: string): Promise<void> {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const nodeBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
+  await writeFile(outputFilePath, nodeBuffer);
+}
+
+/**
+ * WorkbookWriter (Streaming) ohne Datei-Stream: schreibt in internen StreamBuf,
+ * nach commit() Puffer holen und mit writeFile schreiben → zuverlässig lesbare XLSX.
+ */
+async function flushStreamWorkbookToFile(
+  streamWb: { commit: () => Promise<void>; stream: { toBuffer(): Buffer | Uint8Array } },
+  outputFilePath: string,
+): Promise<void> {
+  await streamWb.commit();
+  // Ein Tick warten, damit der interne StreamBuf alle Chunks abgeschlossen hat (ExcelJS-Zip-Pipeline).
+  await new Promise<void>((r) => setImmediate(r));
+  const buffer = streamWb.stream.toBuffer();
+  const nodeBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayLike<number>);
+  await writeFile(outputFilePath, nodeBuffer);
+}
+
 /** Numerischen Wert einer Zelle lesen (direkter Wert oder Formel-Ergebnis). */
 function getNumericValue(cell: ExcelJS.Cell): number | null {
   const val = cell.value;
@@ -330,9 +356,9 @@ function getNumericValue(cell: ExcelJS.Cell): number | null {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Modus B – Streaming-Implementierung (ExcelJS 4.4+ mit archiver 5, CRC-Fix):
- * Jede Quelldatei wird einzeln geladen und Zeile für Zeile in den Output gestreamt.
- * Peak-Speicher ≈ 1 Quelldatei.
+ * Modus B – jede Datei = ein Sheet.
+ * Standard: In-Memory (writeBuffer + writeFile) für zuverlässig in Excel öffnbare XLSX.
+ * Optional: EXCEL_STREAM=true für Streaming (kann ungültige XLSX liefern – ExcelJS-Known-Issue).
  */
 async function copyFilesToSheets(
   sources: SheetSourceRef[],
@@ -343,107 +369,135 @@ async function copyFilesToSheets(
   type MergeDims = { top: number; left: number; bottom: number; right: number };
   type WsInternal = ExcelJS.Worksheet & { _merges?: Record<string, MergeDims> };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
-    new (opts: {
-      filename: string;
-      useStyles: boolean;
-      useSharedStrings: boolean;
-    }) => {
-      addWorksheet: (
-        name: string,
-        opts?: { views?: ExcelJS.WorksheetView[] }
-      ) => ExcelJS.Worksheet & { commit: () => Promise<void> };
-      commit: () => Promise<void>;
-    };
-
-  if (!StreamWb) {
-    throw new Error('ExcelJS streaming writer nicht verfügbar.');
-  }
-
-  const streamWb = new StreamWb({
-    filename: outputFilePath,
-    useStyles: true,
-    useSharedStrings: true,
-  });
-
   const usedNames = new Set<string>();
   const baseNameCount = new Map<string, number>();
 
-  for (let si = 0; si < sources.length; si++) {
-    const source = sources[si]!;
-    onProgress?.(20 + Math.round((si / sources.length) * 75), `Sheet ${si + 1}/${sources.length}: ${source.filename}`);
-    let srcWs: ExcelJS.Worksheet;
-    try {
-      const { ws } = await loadSheet(source);
-      srcWs = ws;
-    } catch (err) {
-      warnings.push(`${source.filename} (${source.sheetName}): ${err instanceof Error ? err.message : String(err)}`);
-      continue;
-    }
-
-    const baseName = source.filename.replace(/\.[^.]+$/, '');
-    const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
-    baseNameCount.set(baseName, countFromSameFile);
-    const rawName = countFromSameFile === 1 ? baseName : `${baseName} - ${source.sheetName}`;
-    const destName = makeSheetNameUnique(rawName, usedNames);
-
-    const destWs = streamWb.addWorksheet(destName);
-
-    if (Array.isArray(srcWs.views) && srcWs.views.length > 0) {
+  if (process.env.EXCEL_STREAM === 'true') {
+    // Streaming (kann bei ExcelJS zu ungültiger XLSX führen)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
+        new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => {
+          addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => ExcelJS.Worksheet & { commit: () => Promise<void> };
+          commit: () => Promise<void>;
+        };
+    if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    for (let si = 0; si < sources.length; si++) {
+      const source = sources[si]!;
+      onProgress?.(20 + Math.round((si / sources.length) * 75), `Sheet ${si + 1}/${sources.length}: ${source.filename}`);
+      let srcWs: ExcelJS.Worksheet;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (destWs as unknown as any).views = srcWs.views.map((v) => ({ ...v }));
-      } catch { /* ignorieren */ }
-    }
-
-    const maxCol = srcWs.columnCount || 0;
-    for (let c = 1; c <= maxCol; c++) {
-      try {
-        const srcCol = srcWs.getColumn(c);
-        const destCol = destWs.getColumn(c);
-        if (srcCol.width !== undefined && srcCol.width > 0) destCol.width = srcCol.width;
-        if (srcCol.hidden) destCol.hidden = true;
-      } catch { /* ignorieren */ }
-    }
-
-    const srcInternal = srcWs as unknown as WsInternal;
-    if (srcInternal._merges) {
-      for (const dims of Object.values(srcInternal._merges)) {
-        if (!dims || typeof dims.top !== 'number') continue;
-        if (dims.top === dims.bottom && dims.left === dims.right) continue;
-        try {
-          destWs.mergeCells(dims.top, dims.left, dims.bottom, dims.right);
-        } catch { /* überspringen */ }
+        const { ws } = await loadSheet(source);
+        srcWs = ws;
+      } catch (err) {
+        warnings.push(`${source.filename} (${source.sheetName}): ${err instanceof Error ? err.message : String(err)}`);
+        continue;
       }
-    }
-
-    srcWs.eachRow({ includeEmpty: true }, (srcRow, rowNum) => {
-      const destRow = destWs.getRow(rowNum);
-      if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
-      if (srcRow.hidden) destRow.hidden = true;
-
-      srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
-        if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
-
-        const destCell = destRow.getCell(colNum);
-        destCell.value = prepareValue(srcCell);
-
-        const style = srcCell.style;
-        if (style && Object.keys(style).length > 0) {
-          try {
-            destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style;
-          } catch { /* ignorieren */ }
+      const baseName = source.filename.replace(/\.[^.]+$/, '');
+      const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
+      baseNameCount.set(baseName, countFromSameFile);
+      const rawName = countFromSameFile === 1 ? baseName : `${baseName} - ${source.sheetName}`;
+      const destName = makeSheetNameUnique(rawName, usedNames);
+      const destWs = streamWb.addWorksheet(destName);
+      if (Array.isArray(srcWs.views) && srcWs.views.length > 0) {
+        try {
+          (destWs as unknown as { views?: ExcelJS.WorksheetView[] }).views = srcWs.views.map((v) => ({ ...v })) as ExcelJS.WorksheetView[];
+        } catch { /* ignorieren */ }
+      }
+      const maxCol = srcWs.columnCount || 0;
+      for (let c = 1; c <= maxCol; c++) {
+        try {
+          const srcCol = srcWs.getColumn(c);
+          const destCol = destWs.getColumn(c);
+          if (srcCol.width !== undefined && srcCol.width > 0) destCol.width = srcCol.width;
+          if (srcCol.hidden) destCol.hidden = true;
+        } catch { /* ignorieren */ }
+      }
+      const srcInternal = srcWs as unknown as WsInternal;
+      if (srcInternal._merges) {
+        for (const dims of Object.values(srcInternal._merges)) {
+          if (!dims || typeof dims.top !== 'number') continue;
+          if (dims.top === dims.bottom && dims.left === dims.right) continue;
+          try { destWs.mergeCells(dims.top, dims.left, dims.bottom, dims.right); } catch { /* überspringen */ }
+        }
+      }
+      srcWs.eachRow({ includeEmpty: true }, (srcRow, rowNum) => {
+        const destRow = destWs.getRow(rowNum);
+        if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
+        if (srcRow.hidden) destRow.hidden = true;
+        srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
+          if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
+          const destCell = destRow.getCell(colNum);
+          destCell.value = prepareValue(srcCell);
+          const style = srcCell.style;
+          if (style && Object.keys(style).length > 0) {
+            try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignorieren */ }
           }
         });
-
-      destRow.commit();
-    });
-
-    await destWs.commit();
+        (destRow as ExcelJS.Row & { commit?: () => void }).commit?.();
+      });
+    }
+    await flushStreamWorkbookToFile(streamWb as unknown as { commit: () => Promise<void>; stream: { toBuffer(): Buffer } }, outputFilePath);
+    return;
   }
 
-  await streamWb.commit();
+  // In-Memory (Standard – XLSX öffnet zuverlässig in Excel)
+  const workbook = new ExcelJS.Workbook();
+    for (let si = 0; si < sources.length; si++) {
+      const source = sources[si]!;
+      onProgress?.(20 + Math.round((si / sources.length) * 75), `Sheet ${si + 1}/${sources.length}: ${source.filename}`);
+      let srcWs: ExcelJS.Worksheet;
+      try {
+        const { ws } = await loadSheet(source);
+        srcWs = ws;
+      } catch (err) {
+        warnings.push(`${source.filename} (${source.sheetName}): ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+      const baseName = source.filename.replace(/\.[^.]+$/, '');
+      const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
+      baseNameCount.set(baseName, countFromSameFile);
+      const rawName = countFromSameFile === 1 ? baseName : `${baseName} - ${source.sheetName}`;
+      const destName = makeSheetNameUnique(rawName, usedNames);
+      const destWs = workbook.addWorksheet(destName);
+      if (Array.isArray(srcWs.views) && srcWs.views.length > 0) {
+        try {
+          (destWs as unknown as { views?: ExcelJS.WorksheetView[] }).views = srcWs.views.map((v) => ({ ...v })) as ExcelJS.WorksheetView[];
+        } catch { /* ignorieren */ }
+      }
+      const maxCol = srcWs.columnCount || 0;
+      for (let c = 1; c <= maxCol; c++) {
+        try {
+          const srcCol = srcWs.getColumn(c);
+          const destCol = destWs.getColumn(c);
+          if (srcCol.width !== undefined && srcCol.width > 0) destCol.width = srcCol.width;
+          if (srcCol.hidden) destCol.hidden = true;
+        } catch { /* ignorieren */ }
+      }
+      const srcInternal = srcWs as unknown as WsInternal;
+      if (srcInternal._merges) {
+        for (const dims of Object.values(srcInternal._merges)) {
+          if (!dims || typeof dims.top !== 'number') continue;
+          if (dims.top === dims.bottom && dims.left === dims.right) continue;
+          try { destWs.mergeCells(dims.top, dims.left, dims.bottom, dims.right); } catch { /* überspringen */ }
+        }
+      }
+      srcWs.eachRow({ includeEmpty: true }, (srcRow, rowNum) => {
+        const destRow = destWs.getRow(rowNum);
+        if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
+        if (srcRow.hidden) destRow.hidden = true;
+        srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
+          if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
+          const destCell = destRow.getCell(colNum);
+          destCell.value = prepareValue(srcCell);
+          const style = srcCell.style;
+          if (style && Object.keys(style).length > 0) {
+            try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignorieren */ }
+          }
+        });
+      });
+    }
+  await writeWorkbookToFile(workbook, outputFilePath);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -453,11 +507,9 @@ async function copyFilesToSheets(
 type MergeRect = [number, number, number, number];
 
 /**
- * Stapelt alle Sheet-Quellen untereinander in einem einzigen Sheet (Streaming).
- * Zwei-Pass: Pass 1 sammelt Metadaten (Spaltenbreiten, Merges), Pass 2 schreibt
- * Zeilen direkt auf Disk. Nur 1 Workbook gleichzeitig im RAM.
- *
- * addSourceCol = true (Modus C): Herkunftsspalte links mit Dateiname/Sheet (vertikal verbunden).
+ * Stapelt alle Sheet-Quellen untereinander in einem Sheet.
+ * Standard: In-Memory (writeBuffer) für in Excel öffnbare XLSX. Optional: EXCEL_STREAM=true für Streaming.
+ * addSourceCol = true (Modus C): Herkunftsspalte links.
  */
 async function mergeAllToOneSheetFormatted(
   sources: SheetSourceRef[],
@@ -475,27 +527,23 @@ async function mergeAllToOneSheetFormatted(
   type WsWithCols = { _columns?: Array<{ number: number; width?: number } | null> };
   type WsInternal = { _merges?: Record<string, { top: number; left: number; bottom: number; right: number }> };
 
-  // ── Pass 1: Metadaten sammeln (pro Quelle laden, auslesen, verwerfen) ─────
   for (let si = 0; si < sources.length; si++) {
     const source = sources[si]!;
     onProgress?.(Math.round((si / sources.length) * 45), `Metadaten ${si + 1}/${sources.length}: ${source.filename}`);
     let srcWs: ExcelJS.Worksheet;
     try {
-      const { wb: _wb, ws } = await loadSheet(source);
+      const { ws } = await loadSheet(source);
       srcWs = ws;
     } catch (err) {
       warnings.push(`${source.filename} (${source.sheetName}): ${err instanceof Error ? err.message : String(err)}`);
       continue;
     }
-
     validSources.push(source);
     const rowOffset = rowOffsets[rowOffsets.length - 1]!;
-
     let copiedRows = 0;
     srcWs.eachRow({ includeEmpty: true }, (_, srcRowNum) => {
       copiedRows = Math.max(copiedRows, srcRowNum);
     });
-
     const internalCols = ((srcWs as unknown as WsWithCols)._columns) ?? [];
     const maxSrcCol = Math.max(srcWs.columnCount || 0, internalCols.length);
     for (let c = 1; c <= maxSrcCol; c++) {
@@ -507,7 +555,6 @@ async function mergeAllToOneSheetFormatted(
         }
       } catch { /* ignore */ }
     }
-
     const wsi = srcWs as unknown as WsInternal;
     if (wsi._merges) {
       for (const dims of Object.values(wsi._merges)) {
@@ -521,40 +568,15 @@ async function mergeAllToOneSheetFormatted(
         ]);
       }
     }
-
     if (addSourceCol && copiedRows > 0) {
       pendingMerges.push([rowOffset + 1, 1, rowOffset + copiedRows, 1]);
       if (!colWidthMap.has(1)) colWidthMap.set(1, 6);
     }
-
     rowOffsets.push(rowOffset + copiedRows);
   }
 
   if (rowOffsets.length <= 1) {
     throw new Error('Keine Daten zum Zusammenführen.');
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  type StreamWs = ExcelJS.Worksheet & { commit: () => Promise<void> };
-  const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
-    new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => {
-      addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => StreamWs;
-      commit: () => Promise<void>;
-    };
-  if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-
-  const streamWb = new StreamWb({
-    filename: outputFilePath,
-    useStyles: true,
-    useSharedStrings: true,
-  });
-  const destWs = streamWb.addWorksheet('Merged');
-
-  for (const [colNum, width] of colWidthMap) {
-    try { destWs.getColumn(colNum).width = width; } catch { /* ignore */ }
-  }
-  for (const [r1, c1, r2, c2] of pendingMerges) {
-    try { destWs.mergeCells(r1, c1, r2, c2); } catch { /* ignore */ }
   }
 
   const sourceCellStyle = {
@@ -564,8 +586,67 @@ async function mergeAllToOneSheetFormatted(
     border: { right: { style: 'thin', color: { argb: 'FF444444' } } },
   } as ExcelJS.Style;
 
-  onProgress?.(50, 'Schreibe Zeilen…');
+  if (process.env.EXCEL_STREAM === 'true') {
+    type StreamWs = ExcelJS.Worksheet & { commit: () => Promise<void> };
+    const StreamWb = (ExcelJS as unknown as { stream?: { xlsx?: { WorkbookWriter: new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => { addWorksheet: (n: string) => StreamWs; commit: () => Promise<void> } } } }).stream?.xlsx?.WorkbookWriter;
+    if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const destWs = streamWb.addWorksheet('Merged');
+    for (const [colNum, width] of colWidthMap) {
+      try { destWs.getColumn(colNum).width = width; } catch { /* ignore */ }
+    }
+    for (const [r1, c1, r2, c2] of pendingMerges) {
+      try { destWs.mergeCells(r1, c1, r2, c2); } catch { /* ignore */ }
+    }
+    onProgress?.(50, 'Schreibe Zeilen…');
+    for (let si = 0; si < validSources.length; si++) {
+      const source = validSources[si]!;
+      onProgress?.(50 + Math.round((si / validSources.length) * 45), `Sheet ${si + 1}/${validSources.length}: ${source.filename}`);
+      let srcWs: ExcelJS.Worksheet;
+      try {
+        const { ws } = await loadSheet(source);
+        srcWs = ws;
+      } catch {
+        continue;
+      }
+      const rowOffset = rowOffsets[si]!;
+      const baseName = source.filename.replace(/\.[^.]+$/, '');
+      const multiFromSameFile = validSources.filter((s) => s.filename === source.filename).length > 1;
+      const sourceLabel = multiFromSameFile ? `${baseName} • ${source.sheetName}` : baseName;
+      srcWs.eachRow({ includeEmpty: true }, (srcRow, srcRowNum) => {
+        const destRowNum = rowOffset + srcRowNum;
+        const destRow = destWs.getRow(destRowNum);
+        if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
+        srcRow.eachCell({ includeEmpty: true }, (srcCell, srcColNum) => {
+          if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
+          const destCell = destRow.getCell(colOffset + srcColNum);
+          destCell.value = prepareValue(srcCell);
+          const style = srcCell.style;
+          if (style && Object.keys(style).length > 0) {
+            try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignore */ }
+          }
+        });
+        if (addSourceCol && srcRowNum === 1) {
+          destRow.getCell(1).value = sourceLabel;
+          destRow.getCell(1).style = sourceCellStyle;
+        }
+        (destRow as ExcelJS.Row & { commit?: () => void }).commit?.();
+      });
+    }
+    await flushStreamWorkbookToFile(streamWb as unknown as { commit: () => Promise<void>; stream: { toBuffer(): Buffer } }, outputFilePath);
+    return;
+  }
 
+  // In-Memory (Standard)
+  const workbook = new ExcelJS.Workbook();
+  const destWs = workbook.addWorksheet('Merged');
+  for (const [colNum, width] of colWidthMap) {
+    try { destWs.getColumn(colNum).width = width; } catch { /* ignore */ }
+  }
+  for (const [r1, c1, r2, c2] of pendingMerges) {
+    try { destWs.mergeCells(r1, c1, r2, c2); } catch { /* ignore */ }
+  }
+  onProgress?.(50, 'Schreibe Zeilen…');
   for (let si = 0; si < validSources.length; si++) {
     const source = validSources[si]!;
     onProgress?.(50 + Math.round((si / validSources.length) * 45), `Sheet ${si + 1}/${validSources.length}: ${source.filename}`);
@@ -576,17 +657,14 @@ async function mergeAllToOneSheetFormatted(
     } catch {
       continue;
     }
-
     const rowOffset = rowOffsets[si]!;
     const baseName = source.filename.replace(/\.[^.]+$/, '');
     const multiFromSameFile = validSources.filter((s) => s.filename === source.filename).length > 1;
     const sourceLabel = multiFromSameFile ? `${baseName} • ${source.sheetName}` : baseName;
-
     srcWs.eachRow({ includeEmpty: true }, (srcRow, srcRowNum) => {
       const destRowNum = rowOffset + srcRowNum;
       const destRow = destWs.getRow(destRowNum);
       if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
-
       srcRow.eachCell({ includeEmpty: true }, (srcCell, srcColNum) => {
         if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
         const destCell = destRow.getCell(colOffset + srcColNum);
@@ -596,19 +674,13 @@ async function mergeAllToOneSheetFormatted(
           try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignore */ }
         }
       });
-
       if (addSourceCol && srcRowNum === 1) {
-        const srcCell = destRow.getCell(1);
-        srcCell.value = sourceLabel;
-        srcCell.style = sourceCellStyle;
+        destRow.getCell(1).value = sourceLabel;
+        destRow.getCell(1).style = sourceCellStyle;
       }
-
-      destRow.commit();
     });
   }
-
-  await destWs.commit();
-  await streamWb.commit();
+  await writeWorkbookToFile(workbook, outputFilePath);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -658,7 +730,7 @@ async function writeSheetToStream(
     });
     destRow.commit();
   });
-  await destStreamWs.commit();
+  // Worksheet nicht manuell commit() – Aufrufer (streamWb.commit()) wartet auf zipped
 }
 
 /** Sammelt numerische Werte aus einem Sheet in runningSum; gibt aktualisierte maxRow/maxCol zurück. */
@@ -759,7 +831,6 @@ async function copyFilesToSheetsWithSummary(
   let maxRow = 0;
   let maxCol = 0;
 
-  // Erstes Sheet = Vorlage
   let templateWs: ExcelJS.Worksheet;
   try {
     const { ws } = await loadSheet(sources[0]!);
@@ -804,21 +875,44 @@ async function copyFilesToSheetsWithSummary(
   buildConsolidatedSheetFromSums(templateWs, runningSum, templateEmptyCells, styleFallback, maxRow, maxCol, summaryWs);
 
   const usedNames = new Set<string>();
-  type StreamWbType = {
-    addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => StreamWs;
-    commit: () => Promise<void>;
-  };
-  const StreamWb = (ExcelJS as unknown as { stream?: { xlsx?: { WorkbookWriter: new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => StreamWbType } } }).stream?.xlsx?.WorkbookWriter;
-  if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-
-  const streamWb = new StreamWb({ filename: outputFilePath, useStyles: true, useSharedStrings: true });
-
   const summaryName = makeSheetNameUnique('Zusammenfassung', usedNames);
-  const destSummaryWs = streamWb.addWorksheet(summaryName) as StreamWs;
-  await writeSheetToStream(destSummaryWs, summaryWs);
 
+  if (process.env.EXCEL_STREAM === 'true') {
+    type StreamWbType = { addWorksheet: (name: string) => StreamWs; commit: () => Promise<void> };
+    const StreamWb = (ExcelJS as unknown as { stream?: { xlsx?: { WorkbookWriter: new (opts: { useStyles: boolean; useSharedStrings: boolean }) => StreamWbType } } }).stream?.xlsx?.WorkbookWriter;
+    if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const destSummaryWs = streamWb.addWorksheet(summaryName) as StreamWs;
+    await writeSheetToStream(destSummaryWs, summaryWs);
+    onProgress?.(50, 'Schreibe Einzel-Sheets…');
+    const baseNameCount = new Map<string, number>();
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i]!;
+      onProgress?.(50 + Math.round((i / sources.length) * 45), `Sheet ${i + 1}/${sources.length}: ${source.filename}`);
+      let ws: ExcelJS.Worksheet;
+      try {
+        const loaded = await loadSheet(source);
+        ws = loaded.ws;
+      } catch {
+        continue;
+      }
+      const baseName = source.filename.replace(/\.[^.]+$/, '');
+      const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
+      baseNameCount.set(baseName, countFromSameFile);
+      const rawName = countFromSameFile === 1 ? baseName : source.sheetName;
+      const destName = makeSheetNameUnique(rawName, usedNames);
+      const destWs = streamWb.addWorksheet(destName) as StreamWs;
+      await writeSheetToStream(destWs, ws);
+    }
+    await flushStreamWorkbookToFile(streamWb as unknown as { commit: () => Promise<void>; stream: { toBuffer(): Buffer } }, outputFilePath);
+    return;
+  }
+
+  // In-Memory (Standard)
+  const workbook = new ExcelJS.Workbook();
+  const destSummary = workbook.addWorksheet(summaryName);
+  copyWorksheet(summaryWs, destSummary);
   onProgress?.(50, 'Schreibe Einzel-Sheets…');
-
   const baseNameCount = new Map<string, number>();
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i]!;
@@ -835,11 +929,10 @@ async function copyFilesToSheetsWithSummary(
     baseNameCount.set(baseName, countFromSameFile);
     const rawName = countFromSameFile === 1 ? baseName : source.sheetName;
     const destName = makeSheetNameUnique(rawName, usedNames);
-    const destWs = streamWb.addWorksheet(destName) as StreamWs;
-    await writeSheetToStream(destWs, ws);
+    const destWs = workbook.addWorksheet(destName);
+    copyWorksheet(ws, destWs);
   }
-
-  await streamWb.commit();
+  await writeWorkbookToFile(workbook, outputFilePath);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -937,13 +1030,9 @@ function colIndexToLetter(idx: number): string {
 }
 
 /**
- * Modus F – Zeilenmatrix (Streaming).
- *
- * Jede Sheet-Quelle wird zu EINER Ausgabe-Zeile. Zwei-Pass: Pass 1 sammelt
- * aktive Zellpositionen, Pass 2 schreibt Zeilen per Stream (nur 1 Workbook gleichzeitig im RAM).
- *
+ * Modus F – Zeilenmatrix.
+ * Standard: In-Memory für in Excel öffnbare XLSX. Optional: EXCEL_STREAM=true für Streaming.
  * addSumRow = true: letzte Zeile „Gesamt“ mit Spaltensummen.
- * addSumRow = false: nur die Quellen-Zeilen, keine Summenzeile.
  */
 async function mergeRowPerFile(
   sources: SheetSourceRef[],
@@ -991,7 +1080,7 @@ async function mergeRowPerFile(
   if (validSources.length === 0) {
     const empty = new ExcelJS.Workbook();
     empty.addWorksheet('Übersicht');
-    await empty.xlsx.writeFile(outputFilePath);
+    await writeWorkbookToFile(empty, outputFilePath);
     return;
   }
 
@@ -1002,24 +1091,19 @@ async function mergeRowPerFile(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
-    new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => {
-      addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => StreamWs;
-      commit: () => Promise<void>;
-    };
-  if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
+  const grandTotals: number[] = addSumRow ? new Array(activeCols.length).fill(0) : [];
+  const FILL = [C.odd, C.even];
 
-  const streamWb = new StreamWb({ filename: outputFilePath, useStyles: true, useSharedStrings: true });
-  const ws = streamWb.addWorksheet('Übersicht');
-
+  if (process.env.EXCEL_STREAM === 'true') {
+    const StreamWb = (ExcelJS as unknown as { stream?: { xlsx?: { WorkbookWriter: new (opts: { useStyles: boolean; useSharedStrings: boolean }) => { addWorksheet: (n: string) => StreamWs; commit: () => Promise<void> } } } }).stream?.xlsx?.WorkbookWriter;
+    if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const ws = streamWb.addWorksheet('Übersicht');
   ws.getColumn(1).width = 14;
   for (let i = 2; i <= activeCols.length + 1; i++) ws.getColumn(i).width = 11;
   try {
     (ws as unknown as { views?: unknown[] }).views = [{ state: 'frozen', xSplit: 1, ySplit: 1, activeCell: 'B2' }];
   } catch { /* ignore */ }
-
-  // Zeile 1: Header
   const hdr1: string[] = ['Datei / Datum'];
   for (const [r, c] of activeCols) hdr1.push(`${colIndexToLetter(c)}${r + 1}`);
   const hdrRow1 = ws.getRow(1);
@@ -1032,20 +1116,15 @@ async function mergeRowPerFile(
     cell.border = { bottom: bMid, top: bThin, left: bThin, right: bThin };
   });
   hdrRow1.commit();
-
-  const grandTotals: number[] = addSumRow ? new Array(activeCols.length).fill(0) : [];
-  const FILL = [C.odd, C.even];
-
   onProgress?.(50, 'Schreibe Zeilen…');
-
   const fileSourceCount = new Map<string, number>();
   for (let si = 0; si < validSources.length; si++) {
     const source = validSources[si]!;
     onProgress?.(50 + Math.round((si / validSources.length) * 45), `Sheet ${si + 1}/${validSources.length}: ${source.filename}`);
     let srcWs: ExcelJS.Worksheet;
     try {
-      const { ws } = await loadSheet(source);
-      srcWs = ws;
+      const { ws: w } = await loadSheet(source);
+      srcWs = w;
     } catch {
       continue;
     }
@@ -1061,7 +1140,6 @@ async function mergeRowPerFile(
       rowData.push(v);
       if (addSumRow && typeof v === 'number') grandTotals[i] += v;
     }
-
     const destRowNum = 2 + si;
     const row = ws.getRow(destRowNum);
     row.height = 16;
@@ -1086,7 +1164,6 @@ async function mergeRowPerFile(
     }
     row.commit();
   }
-
   if (addSumRow && validSources.length > 0) {
     const totalData: RawCell[] = ['Gesamt', ...grandTotals.map((v) => v)];
     const totalRowNum = 2 + validSources.length;
@@ -1106,7 +1183,93 @@ async function mergeRowPerFile(
     }
     totalRow.commit();
   }
+  await flushStreamWorkbookToFile(streamWb as unknown as { commit: () => Promise<void>; stream: { toBuffer(): Buffer } }, outputFilePath);
+  return;
+  }
 
-  await ws.commit();
-  await streamWb.commit();
+  // In-Memory (Standard)
+  const workbook = new ExcelJS.Workbook();
+  const ws = workbook.addWorksheet('Übersicht');
+  ws.getColumn(1).width = 14;
+  for (let i = 2; i <= activeCols.length + 1; i++) ws.getColumn(i).width = 11;
+  try {
+    (ws as unknown as { views?: unknown[] }).views = [{ state: 'frozen', xSplit: 1, ySplit: 1, activeCell: 'B2' }];
+  } catch { /* ignore */ }
+  const hdr1: string[] = ['Datei / Datum'];
+  for (const [r, c] of activeCols) hdr1.push(`${colIndexToLetter(c)}${r + 1}`);
+  const hdrRow1 = ws.getRow(1);
+  hdrRow1.height = 20;
+  hdrRow1.values = hdr1;
+  hdrRow1.font = { bold: true, size: 9, color: { argb: C.hdrFg } };
+  hdrRow1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.hdrBg } };
+  hdrRow1.eachCell((cell, col) => {
+    cell.alignment = { vertical: 'middle', horizontal: col === 1 ? 'left' : 'center' };
+    cell.border = { bottom: bMid, top: bThin, left: bThin, right: bThin };
+  });
+  onProgress?.(50, 'Schreibe Zeilen…');
+  const fileSourceCount = new Map<string, number>();
+  for (let si = 0; si < validSources.length; si++) {
+    const source = validSources[si]!;
+    onProgress?.(50 + Math.round((si / validSources.length) * 45), `Sheet ${si + 1}/${validSources.length}: ${source.filename}`);
+    let srcWs: ExcelJS.Worksheet;
+    try {
+      const { ws: w } = await loadSheet(source);
+      srcWs = w;
+    } catch {
+      continue;
+    }
+    const { grid } = readFullGrid(srcWs);
+    const baseLabel = extractDateLabel(source.filename);
+    const countFromSameFile = (fileSourceCount.get(source.filename) ?? 0) + 1;
+    fileSourceCount.set(source.filename, countFromSameFile);
+    const label = countFromSameFile === 1 ? baseLabel : `${baseLabel} • ${source.sheetName}`;
+    const rowData: RawCell[] = [label];
+    for (let i = 0; i < activeCols.length; i++) {
+      const [r, c] = activeCols[i]!;
+      const v = grid[r]?.[c] ?? null;
+      rowData.push(v);
+      if (addSumRow && typeof v === 'number') grandTotals[i] += v;
+    }
+    const destRowNum = 2 + si;
+    const row = ws.getRow(destRowNum);
+    row.height = 16;
+    row.values = rowData;
+    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL[si % 2]! } };
+    const dateCell = row.getCell(1);
+    dateCell.font = { bold: true, size: 9, color: { argb: C.hdrFg } };
+    dateCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    dateCell.border = { bottom: bThin, top: bThin, left: bThin, right: bMid };
+    for (let i = 0; i < activeCols.length; i++) {
+      const cell = row.getCell(i + 2);
+      const v = rowData[i + 1];
+      if (typeof v === 'number') {
+        cell.numFmt = '#,##0.00';
+        cell.font = { size: 9, color: { argb: C.numFg } };
+        cell.alignment = { vertical: 'middle', horizontal: 'right' };
+      } else {
+        cell.font = { size: 9, color: { argb: C.dataFg } };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+      }
+      cell.border = { bottom: bThin, top: bThin, left: bThin, right: bThin };
+    }
+  }
+  if (addSumRow && validSources.length > 0) {
+    const totalData: RawCell[] = ['Gesamt', ...grandTotals.map((v) => v)];
+    const totalRowNum = 2 + validSources.length;
+    const totalRow = ws.getRow(totalRowNum);
+    totalRow.height = 20;
+    totalRow.values = totalData;
+    totalRow.font = { bold: true, size: 9, color: { argb: C.totalFg } };
+    totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.totalBg } };
+    totalRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+    totalRow.getCell(1).border = { top: bMid, bottom: bMid, left: bThin, right: bMid };
+    for (let i = 0; i < activeCols.length; i++) {
+      const cell = totalRow.getCell(i + 2);
+      const v = grandTotals[i];
+      if (typeof v === 'number') cell.numFmt = '#,##0.00';
+      cell.alignment = { vertical: 'middle', horizontal: 'right' };
+      cell.border = { top: bMid, bottom: bMid, left: bThin, right: bThin };
+    }
+  }
+  await writeWorkbookToFile(workbook, outputFilePath);
 }
