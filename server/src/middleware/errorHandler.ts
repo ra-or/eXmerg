@@ -10,7 +10,7 @@ export interface AppError extends Error {
  */
 export function errorHandler(
   err: AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -18,6 +18,9 @@ export function errorHandler(
   const message =
     err.message || 'Ein unerwarteter Fehler ist aufgetreten.';
   const isProd = process.env.NODE_ENV === 'production';
+
+  // Damit Fehler auf dem Server (journalctl) sichtbar sind
+  console.error(`[${statusCode}] ${req.method} ${req.path} – ${message}`);
 
   res.status(statusCode).json({
     success: false,

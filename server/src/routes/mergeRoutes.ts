@@ -303,18 +303,23 @@ router.post(
 
     const file = (req as Request & { file?: Express.Multer.File }).file;
     if (!file) {
+      console.error('[400] POST /upload-file – Keine Datei.');
       res.status(400).json({ error: 'Keine Datei.' });
       return;
     }
 
     if (!validateExtension(file.originalname)) {
       await cleanupFiles([file.path]);
-      res.status(400).json({ error: getValidationErrorMessage('extension') });
+      const msg = getValidationErrorMessage('extension');
+      console.error('[400] POST /upload-file –', msg);
+      res.status(400).json({ error: msg });
       return;
     }
     if (!validateFileSize(file.size, config.fileLimits.maxFileSizeBytes)) {
       await cleanupFiles([file.path]);
-      res.status(400).json({ error: getValidationErrorMessage('size', config.fileLimits) });
+      const msg = getValidationErrorMessage('size', config.fileLimits);
+      console.error('[400] POST /upload-file –', msg);
+      res.status(400).json({ error: msg });
       return;
     }
 
