@@ -553,10 +553,15 @@ router.get(
       res.status(400).json({ success: false, error: 'Parameter id fehlt oder ungültig.' });
       return;
     }
+    if (subdir !== undefined && (subdir.includes('..') || path.isAbsolute(subdir))) {
+      res.status(400).json({ success: false, error: 'Parameter subdir ungültig.' });
+      return;
+    }
     const baseDir = subdir ? path.join(uploadDir, subdir) : uploadDir;
     const fullPath = path.join(baseDir, path.basename(id));
-    const resolvedUpload = path.resolve(uploadDir);
-    if (!path.resolve(fullPath).startsWith(resolvedUpload)) {
+    const resolvedUpload = path.resolve(uploadDir) + path.sep;
+    const resolvedFull = path.resolve(fullPath);
+    if (resolvedFull !== path.resolve(uploadDir) && !resolvedFull.startsWith(resolvedUpload)) {
       res.status(403).json({ success: false, error: 'Ungültiger Pfad.' });
       return;
     }
