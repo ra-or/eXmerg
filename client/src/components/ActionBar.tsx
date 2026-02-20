@@ -1,0 +1,502 @@
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useStore, generateOutputFilename, sortFileList } from '../store/useStore';
+import { uploadFilesParallel, startMerge, subscribeToMergeProgress, cancelMerge } from '../api/client';
+import { addToLocalHistory } from './DownloadHistory';
+import { useT } from '../i18n';
+
+const UPLOAD_CONCURRENCY = 3;
+
+export function ActionBar() {
+  const t = useT();
+  const files            = useStore((s) => s.files);
+  const fileSortOrder    = useStore((s) => s.fileSortOrder);
+  const mergeOptions     = useStore((s) => s.mergeOptions);
+  const outputFormat     = useStore((s) => s.outputFormat);
+  const outputFilename   = useStore((s) => s.outputFilename);
+  const isCustomFilename = useStore((s) => s.isCustomFilename);
+  const setOutputFilename = useStore((s) => s.setOutputFilename);
+  const setProcessing    = useStore((s) => s.setProcessing);
+  const setMergeError    = useStore((s) => s.setMergeError);
+  const setMergeWarnings = useStore((s) => s.setMergeWarnings);
+  const setDownload      = useStore((s) => s.setDownload);
+  const setUploadProgress = useStore((s) => s.setUploadProgress);
+  const clearResult      = useStore((s) => s.clearResult);
+  const isProcessing     = useStore((s) => s.isProcessing);
+  const mergeError       = useStore((s) => s.mergeError);
+  const mergeWarnings    = useStore((s) => s.mergeWarnings);
+  const downloadUrl      = useStore((s) => s.downloadUrl);
+  const downloadFilename = useStore((s) => s.downloadFilename);
+  const bumpHistory      = useStore((s) => s.bumpHistory);
+  const reset            = useStore((s) => s.reset);
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput]     = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Upload-Fortschritt ────────────────────────────────────────────────────
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'uploading' | 'processing'>('idle');
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const [uploadAggregate, setUploadAggregate] = useState(0);
+  const fileProgressesRef = useRef<number[]>([]);
+
+  // ── SSE-Fortschritt ───────────────────────────────────────────────────────
+  const [sseProgress, setSseProgress] = useState(0);
+  const [sseMsg, setSseMsg]           = useState('');
+  const [queuePos, setQueuePos]       = useState<number | null>(null);
+  const [longRunning, setLongRunning] = useState(false);
+  const longRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sseCleanupRef   = useRef<(() => void) | null>(null);
+  const mergeIdRef      = useRef<string | null>(null);
+
+  // ── Estimations-Timer (Fallback wenn SSE keine pct liefert) ─────────────
+  const estTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const estStartRef  = useRef(0);
+  const estTotalRef  = useRef(0);
+
+  const startEstimation = useCallback(() => {
+    const totalMB = files.reduce((s, f) => s + (f.size ?? 0), 0) / 1024 / 1024;
+    estTotalRef.current = Math.max(5000, totalMB * 2500);
+    estStartRef.current = Date.now();
+    setSseProgress(0);
+    estTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - estStartRef.current;
+      const pct = 97 * (1 - Math.exp(-elapsed / estTotalRef.current));
+      setSseProgress((prev) => Math.max(prev, Math.min(97, Math.round(pct))));
+    }, 250);
+  }, [files]);
+
+  const stopEstimation = useCallback(() => {
+    if (estTimerRef.current) { clearInterval(estTimerRef.current); estTimerRef.current = null; }
+  }, []);
+
+  const clearLongRunTimer = () => {
+    if (longRunTimerRef.current) { clearTimeout(longRunTimerRef.current); longRunTimerRef.current = null; }
+  };
+
+  // Cleanup bei Unmount
+  useEffect(() => () => {
+    sseCleanupRef.current?.();
+    clearLongRunTimer();
+    stopEstimation();
+  }, [stopEstimation]);
+
+  useEffect(() => {
+    if (editingName && inputRef.current) {
+      inputRef.current.focus();
+      const dotIdx = nameInput.lastIndexOf('.');
+      inputRef.current.setSelectionRange(0, dotIdx >= 0 ? dotIdx : nameInput.length);
+    }
+  }, [editingName]);
+
+  const startEditing = () => { setNameInput(outputFilename); setEditingName(true); };
+  const commitName   = () => {
+    const t = nameInput.trim();
+    if (t) setOutputFilename(t, true);
+    setEditingName(false);
+  };
+  const resetName = () => {
+    setOutputFilename(generateOutputFilename(files, outputFormat), false);
+    setEditingName(false);
+  };
+
+  const getEffectiveOptions = useCallback(() => mergeOptions, [mergeOptions]);
+
+  const handleCancelMerge = useCallback(async () => {
+    const id = mergeIdRef.current;
+    if (!id) return;
+    try {
+      await cancelMerge(id);
+      sseCleanupRef.current?.();
+    } catch (e) {
+      setMergeError(e instanceof Error ? e.message : 'Abbrechen fehlgeschlagen.');
+    }
+  }, []);
+
+  const handleMerge = async () => {
+    if (!files.length || isProcessing) return;
+
+    setProcessing(true);
+    setMergeError(null);
+    setMergeWarnings([]);
+    clearResult();
+    setQueuePos(null);
+    setLongRunning(false);
+    clearLongRunTimer();
+    setSseProgress(0);
+    setSseMsg('');
+
+    // Fortschritts-Arrays zurücksetzen
+    fileProgressesRef.current = new Array(files.length).fill(0);
+    setUploadedCount(0);
+    setUploadAggregate(0);
+
+    try {
+      const effectiveOptions = getEffectiveOptions();
+
+      // ── Phase 1: Dateien hochladen (parallel, max. UPLOAD_CONCURRENCY) ──
+      setUploadPhase('uploading');
+      setUploadProgress(0);
+
+      const toUpload  = files
+        .map((f, i) => ({ item: f, i }))
+        .filter(({ item }) => !item.preUploadedId && item.file);
+
+      let completedCount = 0;
+
+      const uploadResults = await uploadFilesParallel(
+        toUpload.map(({ item, i }) => ({ file: item.file!, idx: i })),
+        UPLOAD_CONCURRENCY,
+        (fileIdx, pct) => {
+          fileProgressesRef.current[fileIdx] = pct;
+          if (pct >= 100) completedCount++;
+          setUploadedCount(completedCount);
+          const total = files.length;
+          const agg = fileProgressesRef.current.reduce((s, p) => s + p, 0) / total;
+          setUploadAggregate(Math.round(agg));
+          setUploadProgress(Math.round(agg));
+        },
+      );
+
+      // fileId-Map: Upload-Index (Reihenfolge in files) → fileId
+      const fileIdMap = new Map(uploadResults.map(({ idx, fileId }) => [idx, fileId]));
+
+      // Merge-Reihenfolge = sortierte Liste (Nutzer-Einstellung)
+      const sortedFiles = sortFileList(files, fileSortOrder);
+
+      const fileIds:   string[] = [];
+      const fileNames: string[] = [];
+      for (const item of sortedFiles) {
+        if (item.preUploadedId) {
+          fileIds.push(item.preUploadedId);
+        } else {
+          const rawIndex = files.findIndex((f) => f.id === item.id);
+          const id = rawIndex >= 0 ? fileIdMap.get(rawIndex) : undefined;
+          if (!id) throw new Error(`Upload für Datei ${item.filename} fehlgeschlagen.`);
+          fileIds.push(id);
+        }
+        fileNames.push(item.filename);
+      }
+
+      // ── Phase 2: Merge starten → mergeId ─────────────────────────────
+      setUploadPhase('processing');
+      setUploadProgress('processing');
+      startEstimation();
+      longRunTimerRef.current = setTimeout(() => setLongRunning(true), 2 * 60 * 1000);
+
+      const mergeId = await startMerge(fileIds, fileNames, effectiveOptions, outputFilename);
+      mergeIdRef.current = mergeId;
+
+      // ── Phase 3: SSE-Fortschritt verfolgen ────────────────────────────
+      await new Promise<void>((resolve, reject) => {
+        sseCleanupRef.current = subscribeToMergeProgress(mergeId, {
+          onQueued: (pos) => setQueuePos(pos),
+          onProgress: (pct, msg) => {
+            setQueuePos(null);
+            setSseProgress(pct);
+            setSseMsg(msg);
+          },
+          onComplete: (dlUrl, _dlFilename, warnings) => {
+            stopEstimation();
+            clearLongRunTimer();
+            setLongRunning(false);
+
+            // Dateinamen-Extension korrekt setzen
+            const nameWithExt = outputFormat === 'ods'
+              ? outputFilename.replace(/\.xlsx$/i, '.ods')
+              : outputFilename.replace(/\.ods$/i, '.xlsx');
+            const url = new URL(dlUrl, window.location.origin);
+            url.searchParams.set('name', nameWithExt);
+            setDownload(url.pathname + url.search, nameWithExt);
+            if (warnings.length) setMergeWarnings(warnings);
+
+            // ── Verlauf lokal (nur für diesen Browser) speichern ────────
+            const fileIdParam = url.searchParams.get('id') ?? nameWithExt;
+            addToLocalHistory({
+              id: Math.random().toString(36).slice(2),
+              fileId: fileIdParam,
+              filename: nameWithExt,
+              mode: effectiveOptions.mode,
+              fileCount: files.length,
+              timestamp: Date.now(),
+              isOds: outputFormat === 'ods',
+            });
+
+            bumpHistory();
+            setSseProgress(100);
+            resolve();
+          },
+          onError: (msg) => {
+            stopEstimation();
+            clearLongRunTimer();
+            setLongRunning(false);
+            reject(new Error(msg));
+          },
+        });
+      });
+    } catch (err) {
+      setMergeError(err instanceof Error ? err.message : 'Merge fehlgeschlagen.');
+    } finally {
+      mergeIdRef.current = null;
+      sseCleanupRef.current?.();
+      sseCleanupRef.current = null;
+      setUploadPhase('idle');
+      setProcessing(false);
+      setUploadProgress(null);
+      stopEstimation();
+      clearLongRunTimer();
+      setLongRunning(false);
+    }
+  };
+
+  // ── Fehlerreport-Download ─────────────────────────────────────────────────
+  const downloadErrorReport = () => {
+    const lines = [
+      `eXmerg Fehlerreport – ${new Date().toLocaleString('de-DE')}`,
+      `Datei: ${downloadFilename ?? 'unbekannt'}`,
+      '',
+      ...mergeWarnings.map((w, i) => `${i + 1}. ${w}`),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'merge-fehlerreport.txt'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const noFiles   = files.length === 0;
+  const hasResult = !!downloadUrl && !!downloadFilename;
+  const ext       = outputFormat === 'ods' ? '.ods' : '.xlsx';
+  const displayBasename = outputFilename.replace(/\.(xlsx|ods)$/i, '');
+
+  // Button-Text abhängig von Phase
+  const buttonLabel = (() => {
+    if (!isProcessing) return hasResult ? t('action.mergeAgain') : t('action.merge');
+    if (uploadPhase === 'uploading') {
+      const done = uploadedCount;
+      const total = files.filter(f => !f.preUploadedId && f.file).length;
+      return `${t('action.uploadProgress')} (${done}/${total}) – ${uploadAggregate}%`;
+    }
+    if (queuePos !== null) return t('action.queue', { n: queuePos });
+    return sseProgress > 0 ? `${t('action.processing')} ${sseProgress}%` : t('action.processing');
+  })();
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-20">
+
+      {/* ── Long-Running-Banner ──────────────────────────────────────── */}
+      {longRunning && isProcessing && (
+        <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-400 animate-slide-up">
+            <svg className="w-3.5 h-3.5 shrink-0 animate-spin-slow" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="flex-1">{t('action.longRunning')} {sseMsg && `[${sseMsg}]`}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Fehleranzeige (mit Tipp bei OOM/Timeout) ────────────────────── */}
+      {mergeError && (
+        <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 animate-slide-up">
+            <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="truncate">{mergeError}</p>
+              {(mergeError.includes('Arbeitsspeicher') || mergeError.includes('Nicht genug')) && (
+                <p className="mt-1 text-amber-400/90">{t('error.hintOom')}</p>
+              )}
+              {mergeError.includes('Timeout') && (
+                <p className="mt-1 text-amber-400/90">{t('error.hintTimeout')}</p>
+              )}
+            </div>
+            <button onClick={() => setMergeError(null)} className="text-red-500 hover:text-red-300 shrink-0">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Warnungen + Fehlerreport ──────────────────────────────────── */}
+      {mergeWarnings.length > 0 && (
+        <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-400 animate-slide-up">
+            <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium mb-0.5">{t('warnings.filesFailed', { n: mergeWarnings.length })}</p>
+              <ul className="space-y-0.5">
+                {mergeWarnings.map((w, i) => <li key={i} className="truncate opacity-80">{w}</li>)}
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={downloadErrorReport}
+              className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-amber-500 hover:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 transition-colors"
+              title="Fehlerreport als .txt herunterladen"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span className="hidden sm:inline text-xs">{t('common.report')}</span>
+            </button>
+            <button type="button" onClick={() => setMergeWarnings([])} className="hover:text-amber-200 shrink-0">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Ergebnis-Banner ───────────────────────────────────────────── */}
+      {hasResult && (
+        <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 animate-slide-up">
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+              <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <span className="text-xs text-emerald-400 font-medium shrink-0">{t('action.mergeComplete')}</span>
+            <span className="text-xs text-zinc-600 dark:text-zinc-500 truncate flex-1">{downloadFilename}</span>
+            <a href={downloadUrl!} download={downloadFilename!} className="btn-primary py-1.5 px-3 text-xs shrink-0">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              {t('action.download')}
+            </a>
+            <button type="button" onClick={clearResult} className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0" title="Ergebnis schließen">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Haupt-Leiste ──────────────────────────────────────────────── */}
+      <div className="border-t border-zinc-200 dark:border-surface-600 bg-white/95 dark:bg-surface-900/95 backdrop-blur-md">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-3">
+
+          {/* Mobile: 2-Zeilen-Layout */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+
+            {/* Zeile 1 (mobile) / Links (desktop): Dateiname */}
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 order-2 sm:order-1">
+              {editingName ? (
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') setEditingName(false); }}
+                    onBlur={commitName}
+                    className="flex-1 min-w-0 bg-zinc-200 dark:bg-surface-700 border border-emerald-500/40 rounded px-2 py-1 text-xs text-zinc-800 dark:text-zinc-200 outline-none focus:border-emerald-500/70"
+                    placeholder={t('action.filenamePlaceholder', { ext })}
+                  />
+                  {isCustomFilename && (
+                    <button type="button" onClick={resetName} className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0" title="Auto-Namen wiederherstellen">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  disabled={noFiles}
+                  className="flex items-center gap-1.5 min-w-0 group disabled:opacity-40"
+                  title="Dateinamen bearbeiten"
+                >
+                  <svg className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[160px] sm:max-w-xs group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors">
+                    {displayBasename}<span className="text-zinc-500 dark:text-zinc-600">{ext}</span>
+                  </span>
+                  {!isCustomFilename && <span className="text-xs text-zinc-500 dark:text-zinc-700 shrink-0 hidden sm:inline">{t('action.auto')}</span>}
+                  <svg className="w-3 h-3 text-zinc-500 dark:text-zinc-700 group-hover:text-zinc-600 dark:group-hover:text-zinc-400 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            <div className="hidden sm:block h-6 w-px bg-zinc-300 dark:bg-surface-600 shrink-0" />
+
+            {/* Zeile 0 (mobile) / Rechts (desktop): Buttons */}
+            <div className="flex items-center gap-2 order-1 sm:order-2">
+
+              {/* Merge-Button */}
+              <button
+                type="button"
+                onClick={handleMerge}
+                disabled={noFiles || isProcessing}
+                className={['btn-primary py-2.5 px-4 sm:px-6 text-sm font-bold tracking-wide shrink-0 flex-1 sm:flex-none', hasResult ? 'ring-2 ring-emerald-500/20' : ''].join(' ')}
+              >
+                {isProcessing ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin-slow shrink-0" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    <span className="truncate max-w-[200px]">{buttonLabel}</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    <span>{hasResult ? t('action.mergeAgain') : t('action.merge')}</span>
+                    {files.length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200 text-xs font-mono font-normal">
+                        {files.length}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+
+              {/* Abbrechen (nur während Verarbeitung nach Upload) */}
+              {isProcessing && uploadPhase === 'processing' && (
+                <button
+                  type="button"
+                  onClick={handleCancelMerge}
+                  className="btn-secondary py-2.5 px-3 text-sm font-medium shrink-0 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
+                >
+                  {t('action.cancel')}
+                </button>
+              )}
+
+              {/* Reset */}
+              <button type="button" onClick={reset} className="btn-secondary py-2 shrink-0" title={t('common.reset')}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* SSE-Fortschrittsleiste (nur während Verarbeitung) */}
+          {isProcessing && uploadPhase === 'processing' && (
+            <div className="mt-2 h-1 rounded-full bg-zinc-200 dark:bg-surface-700 overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${sseProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
