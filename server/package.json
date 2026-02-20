@@ -3,10 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "scripts": {
-    "dev": "NODE_OPTIONS=--max-old-space-size=512 tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "NODE_OPTIONS=--max-old-space-size=512 node dist/index.js"
+"scripts": {
+  "dev": "cross-env NODE_OPTIONS=--max-old-space-size=512 tsx watch src/index.ts",
+  "build": "tsc",
+  "start": "cross-env NODE_OPTIONS=--max-old-space-size=512 node dist/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

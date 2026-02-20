@@ -11,7 +11,8 @@
     "build:server": "npm run build --prefix server"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0"
   },
   "workspaces": [
     "client",

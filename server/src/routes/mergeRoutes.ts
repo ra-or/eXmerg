@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
-import { createReadStream, existsSync } from 'fs';
+import { createReadStream } from 'fs';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
@@ -77,24 +77,16 @@ async function waitForWorkerSlot(jobId: string): Promise<void> {
 }
 
 const __routesDir = path.dirname(fileURLToPath(import.meta.url));
+const __serverRoot = path.join(__routesDir, '..', '..');
 
-/**
- * Findet die tsx-Binary: zuerst im laufenden Prozess (beim Starten via tsx),
- * dann per Verzeichnissuche.
- */
-function findTsx(): string {
-  // Wenn tsx den Server gestartet hat, steht es in process.argv[1]
-  if (process.argv[1] && /tsx/.test(process.argv[1]) && existsSync(process.argv[1])) {
-    return process.argv[1];
+/** Dev = TypeScript via tsx loader; Prod = kompiliertes JS aus dist. */
+function getWorkerExecArgs(workerScript: string, inputJsonPath: string): { execPath: string; args: string[] } {
+  const execPath = process.execPath;
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev) {
+    return { execPath, args: ['--import', 'tsx', workerScript, inputJsonPath] };
   }
-  // Verzeichnisbaum nach node_modules/.bin/tsx durchsuchen
-  let dir = __routesDir;
-  for (let i = 0; i < 6; i++) {
-    const p = path.join(dir, 'node_modules', '.bin', 'tsx');
-    if (existsSync(p)) return p;
-    dir = path.dirname(dir);
-  }
-  return 'tsx'; // Fallback: tsx im PATH
+  return { execPath, args: [workerScript, inputJsonPath] };
 }
 
 /**
@@ -112,9 +104,12 @@ function runMergeWorker(
   workerDir: string,
   onProgress?: (pct: number, msg: string) => void,
 ): { promise: Promise<WorkerResult>; kill: () => void } {
-  const tsx = findTsx();
-  const workerScript = path.join(__routesDir, '..', 'workers', 'mergeWorker.ts');
+  const isDev = process.env.NODE_ENV !== 'production';
+  const workerScript = isDev
+    ? path.join(__routesDir, '..', 'workers', 'mergeWorker.ts')
+    : path.join(__serverRoot, 'dist', 'workers', 'mergeWorker.js');
   const inputJsonPath = path.join(workerDir, `${uuidv4()}_input.json`);
+  const { execPath, args } = getWorkerExecArgs(workerScript, inputJsonPath);
 
   let child: ReturnType<typeof spawn> | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -126,9 +121,9 @@ function runMergeWorker(
     return new Promise<WorkerResult>((resolve, reject) => {
       const TIMEOUT_MS = 5 * 60 * 1000; // 5 Minuten
 
-      child = spawn(tsx, [workerScript, inputJsonPath], {
+      child = spawn(execPath, args, {
         env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' },
-        cwd: path.join(__routesDir, '..', '..'),
+        cwd: __serverRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
