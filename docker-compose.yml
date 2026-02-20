@@ -1,0 +1,13 @@
+services:
+  exmerg:
+    build: .
+    image: exmerg:latest
+    container_name: exmerg_app
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - UPLOAD_DIR=/uploads
+    ports:
+      - 127.0.0.1:3003:3003
+    volumes:
+      - /var/www/exmerg/uploads:/uploads

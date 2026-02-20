@@ -241,6 +241,11 @@ async function cleanupFiles(paths: string[]): Promise<void> {
   await Promise.allSettled(paths.map((p) => fs.unlink(p)));
 }
 
+/** GET /api/health – für Docker/Load-Balancer Healthchecks. */
+router.get('/health', (_req: Request, res: Response) => {
+  res.status(200).send('ok');
+});
+
 /** POST /api/sheets – Sheet-Namen + Vorschau-Zeilen einer Datei zurückgeben. */
 router.post(
   '/sheets',

@@ -109,18 +109,17 @@ Alle Modi verarbeiten **alle Sheets** jeder Datei (nicht nur das erste). Die Rei
 
 **Bei „Upload fehlgeschlagen“:** Schreibrechte für das Upload-Verzeichnis prüfen, Dateigröße unter dem Limit, Format .xlsx/.xls/.ods. Der Server liefert eine konkrete Fehlermeldung in der roten Leiste.
 
-### systemd mit www-data (Produktion)
+### Backend in Produktion (Docker, kein systemd)
 
-Der Backend-Service sollte aus Sicherheitsgründen **nicht** als root laufen. Empfohlen: `User=www-data` und `Group=www-data` in der systemd-Unit.
+Das Backend wird **nicht mehr über systemd** gestartet. Stattdessen läuft es im Container:
 
-**Upload-Verzeichnis:** Das tatsächlich genutzte Verzeichnis ist `config.uploadDir`. Beim Start loggt der Server: `[config] uploadDir (resolved): <Pfad>`. Ohne gesetzte Umgebungsvariable `UPLOAD_DIR` ist das bei typischem Deployment das Verzeichnis **uploads** im Projektroot (z. B. `/var/www/exmerg/uploads`).
+```bash
+docker compose up -d
+```
 
-Damit der Service unter www-data Schreibrechte hat, muss dieses Verzeichnis **www-data** gehören:
+Siehe Abschnitt **Deployment (Docker)** unten für Erstdeploy und Updates.
 
-- **Besitzer setzen:** Das Upload-Verzeichnis (und ggf. Elternverzeichnisse) so setzen, dass `www-data` Besitzer ist (z. B. `chown -R www-data:www-data <uploadDir>`).
-- **Rechte:** Typisch z. B. `chmod 755` für das Verzeichnis; der Service muss darin Dateien anlegen und löschen können.
-
-*(Diese Schritte werden manuell auf dem Server ausgeführt; es sind keine Shell-Befehle im Anwendungscode vorgesehen.)*
+*(Falls du weiterhin systemd nutzen willst: Der Backend-Service sollte aus Sicherheitsgründen **nicht** als root laufen – z. B. `User=www-data` und `Group=www-data` in der Unit. Das Upload-Verzeichnis muss dann `www-data` gehören.)*
 
 ## Deployment (z. B. Nginx)
 
@@ -163,31 +162,29 @@ server {
 }
 ```
 
-Backend mit `node server/dist/index.js` (oder PM2/systemd) starten; Umgebungsvariablen setzen.
+Backend per **Docker** starten (siehe unten). Nginx bleibt unverändert und proxyt weiterhin auf `127.0.0.1:3003`.
 
-**Beispiel systemd-Unit** (`/etc/systemd/system/exmerg-backend.service`):
+### Deployment (Docker)
 
-```ini
-[Unit]
-Description=eXmerg Backend API
-After=network.target
+- **Upload-Verzeichnis** ist persistent: Host-Pfad `/var/www/exmerg/uploads` wird per Volume in den Container gemountet (`/uploads`), `UPLOAD_DIR=/uploads` wird per Umgebung gesetzt.
+- Der Container lauscht nur auf **127.0.0.1:3003**; Nginx auf dem Host proxyt wie bisher auf diesen Port.
 
-[Service]
-Type=simple
-User=www-data
-Group=www-data
-WorkingDirectory=/var/www/exmerg/server
-ExecStart=/usr/bin/node dist/index.js
-Restart=on-failure
-Environment=NODE_ENV=production
-Environment=PORT=3003
-# Optional: Environment=UPLOAD_DIR=/var/www/exmerg/uploads
+**Erstdeploy:**
 
-[Install]
-WantedBy=multi-user.target
+```bash
+docker compose build
+docker compose up -d
 ```
 
-Vor dem Start des Services: Upload-Verzeichnis anlegen und an www-data übergeben (siehe Abschnitt „systemd mit www-data“).
+**Update (nach z. B. git pull):**
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+`docker compose up -d` baut bei Bedarf neu und startet den Container mit `restart: always`. Nginx-Konfiguration muss nicht angepasst werden.
 
 ## Weitere Hinweise
 
