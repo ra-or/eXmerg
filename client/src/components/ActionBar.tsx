@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useStore, generateOutputFilename, sortFileList } from '../store/useStore';
 import { uploadFilesParallel, startMerge, subscribeToMergeProgress, cancelMerge } from '../api/client';
 import { addToLocalHistory } from './DownloadHistory';
+import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
 import { useT } from '../i18n';
 
 const UPLOAD_CONCURRENCY = 3;
@@ -19,6 +20,7 @@ export function ActionBar() {
   const setMergeError    = useStore((s) => s.setMergeError);
   const setMergeWarnings = useStore((s) => s.setMergeWarnings);
   const setDownload      = useStore((s) => s.setDownload);
+  const setLastMergeHistoryMeta = useStore((s) => s.setLastMergeHistoryMeta);
   const setUploadProgress = useStore((s) => s.setUploadProgress);
   const clearResult      = useStore((s) => s.clearResult);
   const isProcessing     = useStore((s) => s.isProcessing);
@@ -26,8 +28,12 @@ export function ActionBar() {
   const mergeWarnings    = useStore((s) => s.mergeWarnings);
   const downloadUrl      = useStore((s) => s.downloadUrl);
   const downloadFilename = useStore((s) => s.downloadFilename);
+  const lastMergeHistoryMeta = useStore((s) => s.lastMergeHistoryMeta);
   const bumpHistory      = useStore((s) => s.bumpHistory);
+  const bumpLocalMergeVersion = useStore((s) => s.bumpLocalMergeVersion);
   const reset            = useStore((s) => s.reset);
+  const { saveMerge, downloadMerge, hasLocalBlob, actionLoading } = useLocalMergeHistory();
+  const [downloadBarLoading, setDownloadBarLoading] = useState(false);
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput]     = useState('');
@@ -211,8 +217,9 @@ export function ActionBar() {
 
             // ── Verlauf lokal (nur für diesen Browser) speichern ────────
             const fileIdParam = url.searchParams.get('id') ?? nameWithExt;
+            const historyId = Math.random().toString(36).slice(2);
             addToLocalHistory({
-              id: Math.random().toString(36).slice(2),
+              id: historyId,
               fileId: fileIdParam,
               filename: nameWithExt,
               mode: effectiveOptions.mode,
@@ -220,6 +227,30 @@ export function ActionBar() {
               timestamp: Date.now(),
               isOds: outputFormat === 'ods',
             });
+            setLastMergeHistoryMeta({
+              id: historyId,
+              filename: nameWithExt,
+              mergeOptions: effectiveOptions,
+            });
+
+            // ── Sofort im Browser (IndexedDB) speichern, damit nichts dauerhaft auf dem Server bleibt ──
+            const urlToFetch = url.pathname + url.search;
+            void (async () => {
+              try {
+                const r = await fetch(urlToFetch);
+                if (!r.ok) return;
+                const blob = await r.blob();
+                await saveMerge(blob, {
+                  id: historyId,
+                  filename: nameWithExt,
+                  mergeOptions: effectiveOptions,
+                  createdAt: Date.now(),
+                });
+                bumpLocalMergeVersion(); // Verlauf aktualisieren, damit „Erneut herunterladen“ sofort erscheint
+              } catch {
+                // z. B. IndexedDB nicht verfügbar oder Netzwerkfehler – kein Abbruch
+              }
+            })();
 
             bumpHistory();
             setSseProgress(100);
@@ -267,6 +298,43 @@ export function ActionBar() {
   const hasResult = !!downloadUrl && !!downloadFilename;
   const ext       = outputFormat === 'ods' ? '.ods' : '.xlsx';
   const displayBasename = outputFilename.replace(/\.(xlsx|ods)$/i, '');
+
+  const handleDownloadWithSave = useCallback(async () => {
+    if (!downloadFilename) return;
+    setDownloadBarLoading(true);
+    try {
+      // Zuerst aus dem Browser (IndexedDB), falls schon nach Merge gespeichert
+      if (lastMergeHistoryMeta && hasLocalBlob(lastMergeHistoryMeta.id)) {
+        await downloadMerge(lastMergeHistoryMeta.id);
+        setDownloadBarLoading(false);
+        return;
+      }
+      if (!downloadUrl) return;
+      const res = await fetch(downloadUrl);
+      const blob = await res.blob();
+      if (lastMergeHistoryMeta) {
+        await saveMerge(blob, {
+          id: lastMergeHistoryMeta.id,
+          filename: downloadFilename,
+          mergeOptions: lastMergeHistoryMeta.mergeOptions,
+          createdAt: Date.now(),
+        });
+      }
+      const url = URL.createObjectURL(blob);
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadFilename;
+        a.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      if (downloadUrl) window.open(downloadUrl, '_blank');
+    } finally {
+      setDownloadBarLoading(false);
+    }
+  }, [downloadUrl, downloadFilename, lastMergeHistoryMeta, saveMerge, downloadMerge, hasLocalBlob]);
 
   // Button-Text abhängig von Phase
   const buttonLabel = (() => {
@@ -365,12 +433,17 @@ export function ActionBar() {
             </div>
             <span className="text-xs text-emerald-400 font-medium shrink-0">{t('action.mergeComplete')}</span>
             <span className="text-xs text-zinc-600 dark:text-zinc-500 truncate flex-1">{downloadFilename}</span>
-            <a href={downloadUrl!} download={downloadFilename!} className="btn-primary py-1.5 px-3 text-xs shrink-0">
+            <button
+              type="button"
+              onClick={handleDownloadWithSave}
+              disabled={downloadBarLoading || actionLoading}
+              className="btn-primary py-1.5 px-3 text-xs shrink-0"
+            >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              {t('action.download')}
-            </a>
+              {downloadBarLoading || actionLoading ? '…' : t('action.download')}
+            </button>
             <button type="button" onClick={clearResult} className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0" title="Ergebnis schließen">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

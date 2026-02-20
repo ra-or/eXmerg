@@ -18,5 +18,8 @@
     "client",
     "server",
     "shared"
-  ]
+  ],
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.21"
+  }
 }

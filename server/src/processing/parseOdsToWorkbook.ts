@@ -96,7 +96,8 @@ function parseBorderStr(s: string): BorderDef | undefined {
   if (styleStr === 'solid') {
     bStyle = widthPt >= 2.25 ? 'thick' : widthPt >= 1.5 ? 'medium' : 'thin';
   } else if (styleStr === 'dashed') {
-    bStyle = widthPt >= 1.5 ? 'mediumDashed' : 'dashed';
+    bStyle = widthPt >= 1.5 ? 'medium' : 'dotted';    
+    widthPt >= 1.5 ? 'mediumDashed' : 'dashed';
   } else if (styleStr === 'dotted') {
     bStyle = 'dotted';
   } else if (styleStr === 'double') {

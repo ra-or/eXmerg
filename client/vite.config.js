@@ -15,7 +15,7 @@ export default defineConfig({
         allowedHosts: ['exmerg.de', 'www.exmerg.de'],
         proxy: {
             '/api': {
-                target: 'http://localhost:3003',
+                target: process.env.VITE_PROXY_TARGET || 'http://localhost:3003',
                 changeOrigin: true,
             },
         },

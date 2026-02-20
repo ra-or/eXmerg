@@ -2,10 +2,13 @@
  * Merge-Worker – isolierter Kind-Prozess.
  * – Führt den eigentlichen Merge durch (ggf. OOM-sicher)
  * – Konvertiert XLSX→ODS falls outputFormat === 'ods'
+ *   (primär via LibreOffice für volles Styling; Fallback: SheetJS)
  * – Gibt Warnungen via stdout aus (Prefix WARNINGS:<json>)
  */
 
-import { readFile, writeFile, unlink } from 'fs/promises';
+import { readFile, writeFile, unlink, stat } from 'fs/promises';
+import { spawnSync } from 'child_process';
+import { dirname } from 'path';
 import type { FileRef } from '../services/mergeService.js';
 import type { SpreadsheetMergeOptions } from 'shared';
 
@@ -14,6 +17,27 @@ export interface WorkerPayload {
   options: SpreadsheetMergeOptions;
   selectedSheets?: Record<string, string[]>;
   outputFilePath: string;
+}
+
+/** Versucht XLSX→ODS mit LibreOffice (volles Styling, öffnbare Datei). Gibt true zurück wenn erfolgreich. */
+async function tryLibreOfficeConvert(xlsxPath: string, outDir: string): Promise<boolean> {
+  const cmds = ['soffice', 'libreoffice'];
+  for (const cmd of cmds) {
+    const r = spawnSync(cmd, ['--headless', '--convert-to', 'ods', '--outdir', outDir, xlsxPath], {
+      encoding: 'utf8',
+      timeout: 120_000,
+    });
+    if (r.status === 0) {
+      const odsPath = xlsxPath.replace(/\.xlsx$/i, '.ods');
+      try {
+        await stat(odsPath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
 }
 
 const inputPath = process.argv[2];
@@ -26,6 +50,8 @@ if (!inputPath) {
 try {
   const raw = await readFile(inputPath, 'utf-8');
   const payload: WorkerPayload = JSON.parse(raw) as WorkerPayload;
+
+  console.log('OUTPUT PATH:', payload.outputFilePath);
 
   const { mergeSpreadsheets, warningsPath } = await import('../services/mergeService.js');
 
@@ -42,16 +68,35 @@ try {
     onProgress,
   });
 
-  // ── ODS-Konvertierung ────────────────────────────────────────────────────
+  // ── ODS-Konvertierung (Styling wie XLSX, öffnbare Datei) ──────────────────
+  const finalOutputPath =
+    payload.options.outputFormat === 'ods'
+      ? payload.outputFilePath.replace(/\.xlsx$/i, '.ods')
+      : payload.outputFilePath;
+
   if (payload.options.outputFormat === 'ods') {
-    const XLSX = await import('xlsx');
-    const xlsxBuf = await readFile(payload.outputFilePath);
-    const wb = XLSX.read(xlsxBuf, { type: 'buffer' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const odsBuf = XLSX.write(wb, { bookType: 'ods', type: 'buffer' }) as unknown as Uint8Array;
     const odsPath = payload.outputFilePath.replace(/\.xlsx$/i, '.ods');
-    await writeFile(odsPath, odsBuf);
-    await unlink(payload.outputFilePath);
+    const outDir = dirname(payload.outputFilePath);
+    const triedLibreOffice = await tryLibreOfficeConvert(payload.outputFilePath, outDir);
+    if (triedLibreOffice) {
+      await unlink(payload.outputFilePath);
+    } else {
+      // Fallback: SheetJS (ODS kann bei manchen Viewern Probleme machen; Styling eingeschränkt)
+      const XLSX = await import('xlsx');
+      const xlsxBuf = await readFile(payload.outputFilePath);
+      const wb = XLSX.read(xlsxBuf, { type: 'buffer', cellStyles: true });
+      const odsBuf = XLSX.write(wb, { bookType: 'ods', type: 'buffer' });
+      const buf = Buffer.isBuffer(odsBuf) ? odsBuf : Buffer.from(odsBuf as ArrayBufferView | ArrayBuffer);
+      await writeFile(odsPath, buf);
+      await unlink(payload.outputFilePath);
+    }
+  }
+
+  try {
+    const st = await stat(finalOutputPath);
+    console.log('OUTPUT FILE EXISTS, SIZE:', st.size);
+  } catch (e) {
+    console.error('OUTPUT FILE MISSING OR UNREADABLE:', finalOutputPath, e);
   }
 
   // ── Warnungen an Haupt-Prozess (stdout) ──────────────────────────────────

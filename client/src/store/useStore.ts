@@ -197,6 +197,8 @@ interface AppState {
   mergeWarnings: string[];
   downloadUrl: string | null;
   downloadFilename: string | null;
+  /** Meta des zuletzt hinzugefügten Verlauf-Eintrags (für IndexedDB-Speicherung beim ersten Download). */
+  lastMergeHistoryMeta: { id: string; filename: string; mergeOptions: MergeOptions } | null;
   outputFilename: string;
   isCustomFilename: boolean;
   uploadProgress: number | 'processing' | null;
@@ -208,6 +210,9 @@ interface AppState {
   /** Zähler – erhöht sich nach jedem erfolgreichen Merge (triggert History-Refresh). */
   historyVersion: number;
   bumpHistory: () => void;
+  /** Erhöht sich, wenn eine Datei in IndexedDB gespeichert wurde (triggert Aktualisierung der lokalen Liste). */
+  localMergeVersion: number;
+  bumpLocalMergeVersion: () => void;
 
   addFiles: (files: File[]) => void;
   addHistoryFile: (entry: HistoryEntry) => void;
@@ -224,6 +229,7 @@ interface AppState {
   setMergeError: (e: string | null) => void;
   setMergeWarnings: (w: string[]) => void;
   setDownload: (url: string | null, name: string | null) => void;
+  setLastMergeHistoryMeta: (meta: { id: string; filename: string; mergeOptions: MergeOptions } | null) => void;
   setOutputFilename: (name: string, isCustom?: boolean) => void;
   setUploadProgress: (p: number | 'processing' | null) => void;
   setFileSortOrder: (order: FileSortOrder) => void;
@@ -248,11 +254,13 @@ export const useStore = create<AppState>((set) => ({
   mergeOptions: { ...defaultMergeOptions, mode: getSavedMode() },
   outputFormat: getSavedFormat(),
   historyVersion: 0,
+  localMergeVersion: 0,
   isProcessing: false,
   mergeError: null,
   mergeWarnings: [],
   downloadUrl: null,
   downloadFilename: null,
+  lastMergeHistoryMeta: null,
   outputFilename: getSavedFormat() === 'ods' ? 'merged.ods' : 'merged.xlsx',
   isCustomFilename: false,
   uploadProgress: null,
@@ -295,6 +303,7 @@ export const useStore = create<AppState>((set) => ({
     }),
 
   bumpHistory: () => set((s) => ({ historyVersion: s.historyVersion + 1 })),
+  bumpLocalMergeVersion: () => set((s) => ({ localMergeVersion: s.localMergeVersion + 1 })),
 
   addHistoryFile: (entry) =>
     set((s) => {
@@ -417,6 +426,7 @@ export const useStore = create<AppState>((set) => ({
   setMergeError: (e) => set({ mergeError: e }),
   setMergeWarnings: (w) => set({ mergeWarnings: w }),
   setDownload: (url, name) => set({ downloadUrl: url, downloadFilename: name }),
+  setLastMergeHistoryMeta: (meta) => set({ lastMergeHistoryMeta: meta }),
 
   setOutputFilename: (name, isCustom = true) =>
     set({ outputFilename: name, isCustomFilename: isCustom }),
@@ -430,7 +440,7 @@ export const useStore = create<AppState>((set) => ({
 
   clearNewlyAddedFileIds: () => set({ newlyAddedFileIds: [] }),
 
-  clearResult: () => set({ downloadUrl: null, downloadFilename: null, mergeWarnings: [] }),
+  clearResult: () => set({ downloadUrl: null, downloadFilename: null, lastMergeHistoryMeta: null, mergeWarnings: [] }),
 
   reset: () =>
     set((s) => ({
@@ -447,6 +457,7 @@ export const useStore = create<AppState>((set) => ({
       mergeWarnings: [],
       downloadUrl: null,
       downloadFilename: null,
+      lastMergeHistoryMeta: null,
       outputFilename: generateOutputFilename([], s.outputFormat),
       isCustomFilename: false,
       uploadProgress: null,

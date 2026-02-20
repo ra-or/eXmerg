@@ -330,10 +330,9 @@ function getNumericValue(cell: ExcelJS.Cell): number | null {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Modus B – Streaming-Implementierung:
+ * Modus B – Streaming-Implementierung (ExcelJS 4.4+ mit archiver 5, CRC-Fix):
  * Jede Quelldatei wird einzeln geladen und Zeile für Zeile in den Output gestreamt.
- * Der Output-Workbook wächst dabei NICHT im RAM; jeder Sheet wird sofort auf Disk
- * geschrieben (row.commit() + ws.commit()). Peak-Speicher ≈ 1 Quelldatei.
+ * Peak-Speicher ≈ 1 Quelldatei.
  */
 async function copyFilesToSheets(
   sources: SheetSourceRef[],
@@ -341,11 +340,9 @@ async function copyFilesToSheets(
   warnings: string[],
   onProgress?: (pct: number, msg: string) => void,
 ): Promise<void> {
-  // Interner Typ für ExcelJS _merges
   type MergeDims = { top: number; left: number; bottom: number; right: number };
   type WsInternal = ExcelJS.Worksheet & { _merges?: Record<string, MergeDims> };
 
-  // ExcelJS Streaming Writer – schreibt direkt auf Disk
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
     new (opts: {
@@ -537,8 +534,8 @@ async function mergeAllToOneSheetFormatted(
     throw new Error('Keine Daten zum Zusammenführen.');
   }
 
-  // ── Pass 2: Stream schreiben ─────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type StreamWs = ExcelJS.Worksheet & { commit: () => Promise<void> };
   const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
     new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => {
       addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => StreamWs;
@@ -615,10 +612,10 @@ async function mergeAllToOneSheetFormatted(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Modus E: Konsolidierungs-Sheet + Einzelne Sheets (Streaming: nur 1–2 Workbooks im RAM)
+// Modus E: Konsolidierungs-Sheet + Einzelne Sheets (Streaming)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Stream-Worksheet-Typ (wie in copyFilesToSheets). */
+/** Stream-Worksheet-Typ für ExcelJS WorkbookWriter. */
 type StreamWs = ExcelJS.Worksheet & { commit: () => Promise<void> };
 
 /**
@@ -754,13 +751,6 @@ async function copyFilesToSheetsWithSummary(
   warnings: string[],
   onProgress?: (pct: number, msg: string) => void,
 ): Promise<void> {
-  type StreamWbType = {
-    addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => StreamWs;
-    commit: () => Promise<void>;
-  };
-  const StreamWb = (ExcelJS as unknown as { stream?: { xlsx?: { WorkbookWriter: new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => StreamWbType } } }).stream?.xlsx?.WorkbookWriter;
-  if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-
   if (sources.length === 0) throw new Error('Keine Sheet-Quellen für die Konsolidierung gefunden.');
 
   const runningSum = new Map<string, number>();
@@ -814,6 +804,13 @@ async function copyFilesToSheetsWithSummary(
   buildConsolidatedSheetFromSums(templateWs, runningSum, templateEmptyCells, styleFallback, maxRow, maxCol, summaryWs);
 
   const usedNames = new Set<string>();
+  type StreamWbType = {
+    addWorksheet: (name: string, opts?: { views?: ExcelJS.WorksheetView[] }) => StreamWs;
+    commit: () => Promise<void>;
+  };
+  const StreamWb = (ExcelJS as unknown as { stream?: { xlsx?: { WorkbookWriter: new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => StreamWbType } } }).stream?.xlsx?.WorkbookWriter;
+  if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
+
   const streamWb = new StreamWb({ filename: outputFilePath, useStyles: true, useSharedStrings: true });
 
   const summaryName = makeSheetNameUnique('Zusammenfassung', usedNames);
@@ -1005,7 +1002,6 @@ async function mergeRowPerFile(
     }
   }
 
-  // ── Pass 2: Stream schreiben ─────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as
     new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => {

@@ -90,16 +90,30 @@ export function uploadFileToServer(
     xhr.upload.addEventListener('load', () => onProgress(100));
 
     xhr.addEventListener('load', () => {
+      let data: { fileId?: string; error?: string };
       try {
-        const data = JSON.parse(xhr.responseText) as { fileId?: string; error?: string };
-        if (xhr.status >= 400) reject(new Error(data.error || 'Upload fehlgeschlagen.'));
-        else if (!data.fileId) reject(new Error('Server hat keine fileId zurückgegeben.'));
-        else resolve(data.fileId);
+        data = JSON.parse(xhr.responseText) as { fileId?: string; error?: string };
       } catch {
-        reject(new Error('Upload fehlgeschlagen.'));
+        const hint = xhr.status >= 400
+          ? ` (HTTP ${xhr.status})`
+          : '';
+        const excerpt = typeof xhr.responseText === 'string' && xhr.responseText.length > 0
+          ? ' – Antwort ist kein JSON.'
+          : ' – Server antwortet leer oder nicht mit JSON.';
+        reject(new Error('Upload fehlgeschlagen.' + hint + excerpt));
+        return;
       }
+      if (xhr.status >= 400) {
+        reject(new Error(data.error || `Upload fehlgeschlagen. (HTTP ${xhr.status})`));
+        return;
+      }
+      if (!data.fileId) {
+        reject(new Error('Server hat keine fileId zurückgegeben.'));
+        return;
+      }
+      resolve(data.fileId);
     });
-    xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Upload.')));
+    xhr.addEventListener('error', () => reject(new Error('Netzwerkfehler beim Upload. Ist der Server erreichbar?')));
     xhr.addEventListener('abort', () => reject(new Error('Upload abgebrochen.')));
     xhr.send(form);
   });

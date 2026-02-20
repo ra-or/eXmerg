@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { HistoryEntry } from 'shared';
 import { useT } from '../i18n';
+import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
 
 // Drag-Daten-Format für History → FileList
 export const HISTORY_DRAG_TYPE = 'application/x-eXmerg-history';
@@ -30,6 +31,13 @@ export function addToLocalHistory(entry: HistoryEntry): void {
   } catch { /* localStorage nicht verfügbar */ }
 }
 
+/** Verlaufsliste im localStorage leeren (Einträge + Metadaten). */
+export function clearLocalHistory(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, '[]');
+  } catch { /* ignore */ }
+}
+
 // ── Komponente ────────────────────────────────────────────────────────────────
 
 function timeAgo(t: (key: string, vars?: Record<string, number>) => string, ts: number): string {
@@ -40,16 +48,45 @@ function timeAgo(t: (key: string, vars?: Record<string, number>) => string, ts: 
   return t('history.hourAgo', { n: Math.floor(sec / 3600) });
 }
 
+function formatStorageSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function DownloadHistory() {
   const t = useT();
   const historyVersion = useStore((s) => s.historyVersion);
-  const addHistoryFile = useStore((s) => s.addHistoryFile);
+  const bumpHistory = useStore((s) => s.bumpHistory);
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const {
+    totalSize,
+    loading: idbLoading,
+    actionLoading,
+    hasLocalBlob,
+    downloadMerge,
+    deleteMerge,
+    clearAll,
+  } = useLocalMergeHistory();
 
   // Verlauf aus localStorage laden – bei jedem Merge-Bump aktualisieren
   useEffect(() => {
     setEntries(getLocalHistory());
   }, [historyVersion]);
+
+  const handleDelete = async (id: string) => {
+    await deleteMerge(id);
+  };
+  const handleClearAll = async () => {
+    await clearAll();
+  };
+  /** Gesamten Verlauf löschen: IndexedDB + Verlaufsliste (localStorage). */
+  const handleClearEntireHistory = async () => {
+    await clearAll();
+    clearLocalHistory();
+    setEntries([]);
+    bumpHistory();
+  };
 
   if (entries.length === 0) return null;
 
@@ -69,13 +106,43 @@ export function DownloadHistory() {
         {t('history.privacy')}
       </p>
 
+      {/* Speicheranzeige + Clear */}
+      {!idbLoading && totalSize >= 0 && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-[11px] text-zinc-500 dark:text-zinc-600">
+            {t('history.storageUsed', { size: formatStorageSize(totalSize) })}
+          </span>
+          <span className="flex items-center gap-2">
+            {totalSize > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={actionLoading}
+                className="text-[11px] text-zinc-500 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+              >
+                {t('history.clearLocal')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleClearEntireHistory}
+              disabled={actionLoading}
+              className="text-[11px] text-zinc-500 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+            >
+              {t('history.clearEntire')}
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Liste */}
       <ul className="space-y-1.5">
         {entries.map((entry) => {
-          const downloadUrl =
+          const serverDownloadUrl =
             `/api/download?id=${encodeURIComponent(entry.fileId)}` +
             `&name=${encodeURIComponent(entry.filename)}` +
             (entry.isOds ? '&fmt=ods' : '');
+          const hasLocal = hasLocalBlob(entry.id);
 
           const ext = entry.filename.split('.').pop()?.toLowerCase() ?? 'xlsx';
           const extColor = ext === 'ods'
@@ -111,37 +178,58 @@ export function DownloadHistory() {
                 </div>
               </div>
 
-              {/* Als Quelle hinzufügen */}
-              <button
-                type="button"
-                onClick={() => addHistoryFile(entry)}
-                className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium
-                  bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-500 border border-zinc-400 dark:border-surface-500
-                  hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/30
-                  transition-colors opacity-0 group-hover:opacity-100"
-                title={t('history.addSourceTitle')}
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hidden sm:inline">{t('history.addAsSource')}</span>
-              </button>
+              {/* Erneut herunterladen: lokal (IndexedDB) oder Server-Link */}
+              {hasLocal ? (
+                <button
+                  type="button"
+                  onClick={() => downloadMerge(entry.id)}
+                  disabled={actionLoading}
+                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium
+                    bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border border-zinc-400 dark:border-surface-500
+                    hover:bg-zinc-300 dark:hover:bg-surface-600 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-500
+                    transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                  title={t('history.downloadTitle')}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span className="hidden sm:inline">{t('history.downloadTitle')}</span>
+                </button>
+              ) : (
+                <a
+                  href={serverDownloadUrl}
+                  download={entry.filename}
+                  className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium
+                    bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border border-zinc-400 dark:border-surface-500
+                    hover:bg-zinc-300 dark:hover:bg-surface-600 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-500
+                    transition-colors opacity-0 group-hover:opacity-100"
+                  title={t('history.downloadTitle')}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span className="hidden sm:inline">{t('history.download')}</span>
+                </a>
+              )}
 
-              {/* Download-Button */}
-              <a
-                href={downloadUrl}
-                download={entry.filename}
-                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium
-                  bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border border-zinc-400 dark:border-surface-500
-                  hover:bg-zinc-300 dark:hover:bg-surface-600 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-500
-                  transition-colors opacity-0 group-hover:opacity-100"
-                title={t('history.downloadTitle')}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span className="hidden sm:inline">{t('history.download')}</span>
-              </a>
+              {/* Löschen (nur wenn lokal vorhanden) */}
+              {hasLocal && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(entry.id)}
+                  disabled={actionLoading}
+                  className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium
+                    bg-zinc-200 dark:bg-surface-700 text-zinc-500 dark:text-zinc-500 border border-zinc-400 dark:border-surface-500
+                    hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 hover:border-red-500/30
+                    transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                  title={t('history.delete')}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4m1 4h6M4 7h16" />
+                  </svg>
+                  <span className="hidden sm:inline">{t('history.delete')}</span>
+                </button>
+              )}
             </li>
           );
         })}

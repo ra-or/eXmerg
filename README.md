@@ -25,7 +25,8 @@ npm run dev
 
 Im Browser: **http://localhost:3002**
 
-- Der Vite-Dev-Server proxied `/api` an den Backend-Server.
+- Der Vite-Dev-Server proxied `/api` an den Backend-Server (Standard: `http://localhost:3003`).
+- **Backend auf anderem Rechner (z. B. Linux-Server):** `VITE_PROXY_TARGET=http://<Server-IP>:3003 npm run dev` – dann laufen Client lokal (Windows) und API auf dem Server.
 
 ## Build (Produktion)
 
@@ -101,15 +102,92 @@ Alle Modi verarbeiten **alle Sheets** jeder Datei (nicht nur das erste). Die Rei
 Über Umgebungsvariablen (optional):
 
 - `PORT` – Server-Port (Standard: 3003)
-- `UPLOAD_DIR` – Verzeichnis für Uploads/Temp
+- `UPLOAD_DIR` – Verzeichnis für Uploads und temporäre Merge-Ergebnisse (Standard: **Projektroot/uploads**, z. B. `/var/www/exmerg/uploads` bei Deployment unter `/var/www/exmerg`)
+- `TEMP_FILE_TTL_SECONDS` – Nach welchem Alter (Sekunden) noch vorhandene Temp-Dateien vom Fallback-Cleanup gelöscht werden (Standard: 3600 = 1 Stunde). Gemergte Dateien werden in der Regel direkt nach erfolgreichem Download gelöscht; dieser Wert betrifft z. B. abgebrochene Downloads oder nicht abgeholte Dateien.
 - `MAX_FILE_SIZE_BYTES` – Max. Dateigröße pro Datei
 - `MAX_FILES_PER_REQUEST` – Max. Anzahl Dateien pro Request
+
+**Bei „Upload fehlgeschlagen“:** Schreibrechte für das Upload-Verzeichnis prüfen, Dateigröße unter dem Limit, Format .xlsx/.xls/.ods. Der Server liefert eine konkrete Fehlermeldung in der roten Leiste.
+
+### systemd mit www-data (Produktion)
+
+Der Backend-Service sollte aus Sicherheitsgründen **nicht** als root laufen. Empfohlen: `User=www-data` und `Group=www-data` in der systemd-Unit.
+
+**Upload-Verzeichnis:** Das tatsächlich genutzte Verzeichnis ist `config.uploadDir`. Beim Start loggt der Server: `[config] uploadDir (resolved): <Pfad>`. Ohne gesetzte Umgebungsvariable `UPLOAD_DIR` ist das bei typischem Deployment das Verzeichnis **uploads** im Projektroot (z. B. `/var/www/exmerg/uploads`).
+
+Damit der Service unter www-data Schreibrechte hat, muss dieses Verzeichnis **www-data** gehören:
+
+- **Besitzer setzen:** Das Upload-Verzeichnis (und ggf. Elternverzeichnisse) so setzen, dass `www-data` Besitzer ist (z. B. `chown -R www-data:www-data <uploadDir>`).
+- **Rechte:** Typisch z. B. `chmod 755` für das Verzeichnis; der Service muss darin Dateien anlegen und löschen können.
+
+*(Diese Schritte werden manuell auf dem Server ausgeführt; es sind keine Shell-Befehle im Anwendungscode vorgesehen.)*
 
 ## Deployment (z. B. Nginx)
 
 - **Client:** Statische Dateien aus `client/dist/` ausliefern (Root oder Unterpfad).
-- **API:** Proxy von `/api` auf den Node-Server (z. B. Port 3003).
-- Backend mit `node server/dist/index.js` (oder PM2) starten; Umgebungsvariablen setzen.
+- **API:** **Alle** Anfragen unter `/api` an den Node-Server weiterleiten (z. B. Port 3003).  
+  Bei **HTTP 404** und „Antwort ist kein JSON“ leitet der Proxy die Anfrage oft nicht weiter oder nur für einzelne Pfade – dann fehlt z. B. `POST /api/upload-file`.
+
+**Benötigte API-Routen (alles unter `/api`):**
+
+| Methode | Pfad | Beschreibung |
+|--------|------|--------------|
+| POST   | `/api/upload-file` | Einzeldatei-Upload (für Merge) |
+| POST   | `/api/sheets`      | Sheet-Namen + Vorschau |
+| POST   | `/api/merge`       | Merge starten (fileIds oder Dateien) |
+| GET    | `/api/progress/:mergeId` | SSE-Fortschritt |
+| DELETE | `/api/merge/:mergeId/cancel` | Merge abbrechen |
+| GET    | `/api/download`    | Ergebnis-Download |
+
+**Nginx – gesamtes `/api` an Node weiterleiten:**
+
+```nginx
+server {
+  listen 80;
+  server_name exmerg.de;
+  root /pfad/zu/eXmerg/client/dist;
+  index index.html;
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+  location /api {
+    proxy_pass http://127.0.0.1:3003;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    client_max_body_size 100M;
+  }
+}
+```
+
+Backend mit `node server/dist/index.js` (oder PM2/systemd) starten; Umgebungsvariablen setzen.
+
+**Beispiel systemd-Unit** (`/etc/systemd/system/exmerg-backend.service`):
+
+```ini
+[Unit]
+Description=eXmerg Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/exmerg/server
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+Environment=NODE_ENV=production
+Environment=PORT=3003
+# Optional: Environment=UPLOAD_DIR=/var/www/exmerg/uploads
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Vor dem Start des Services: Upload-Verzeichnis anlegen und an www-data übergeben (siehe Abschnitt „systemd mit www-data“).
 
 ## Weitere Hinweise
 

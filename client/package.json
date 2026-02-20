@@ -9,10 +9,11 @@
     "preview": "vite preview --port 3002"
   },
   "dependencies": {
-    "shared": "file:../shared",
+    "exceljs": "4.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-query": "^3.39.3",
+    "react-query": "^3.10.0",
+    "shared": "file:../shared",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
@@ -23,6 +24,6 @@
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
-    "vite": "^5.0.11"
+    "vite": "^7.3.1"
   }
 }

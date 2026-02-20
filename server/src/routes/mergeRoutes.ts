@@ -228,7 +228,12 @@ const upload = multer({
 });
 
 async function ensureUploadDir(): Promise<void> {
-  await fs.mkdir(uploadDir, { recursive: true });
+  try {
+    await fs.mkdir(uploadDir, { recursive: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Upload-Verzeichnis nicht verfügbar: ${msg}`);
+  }
 }
 
 /** Löscht eine Liste von Temp-Dateien (ignoriert Fehler). */
@@ -570,12 +575,19 @@ router.get(
       res.status(403).json({ success: false, error: 'Ungültiger Pfad.' });
       return;
     }
+    console.log('DOWNLOAD PATH:', fullPath);
+    let stat: Awaited<ReturnType<typeof fs.stat>>;
     try {
-      await fs.access(fullPath);
+      stat = await fs.stat(fullPath);
     } catch {
       res.status(404).json({ success: false, error: 'Datei nicht gefunden.' });
       return;
     }
+    if (!stat.isFile()) {
+      res.status(404).json({ success: false, error: 'Datei nicht gefunden.' });
+      return;
+    }
+    console.log('DOWNLOAD FILE SIZE:', stat.size);
 
     const isOdsFmt = (req.query.fmt as string) === 'ods' || name.endsWith('.ods');
     const contentType = isOdsFmt
@@ -584,11 +596,29 @@ router.get(
 
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', String(stat.size));
+
+    let sendSucceeded = true;
     const stream = createReadStream(fullPath);
-    stream.pipe(res);
-    stream.on('error', () => {
+    stream.on('error', (err) => {
+      sendSucceeded = false;
+      console.error('DOWNLOAD STREAM ERROR:', fullPath, err.message);
       if (!res.headersSent) res.status(500).json({ success: false, error: 'Download fehlgeschlagen.' });
+      else res.destroy();
     });
+
+    res.on('finish', () => {
+      if (!sendSucceeded) return;
+      fs.unlink(fullPath)
+        .then(() => {
+          console.log('[download] file sent and removed:', fullPath);
+        })
+        .catch((err) => {
+          console.warn('[download] failed to remove temp file:', err);
+        });
+    });
+
+    stream.pipe(res);
   })
 );
 

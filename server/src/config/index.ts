@@ -20,9 +20,11 @@ function getEnvNumber(key: string, fallback: number): number {
 
 export function loadConfig(): ServerConfig {
   const port = getEnvNumber('PORT', 3003);
-  const uploadDir =
-    process.env.UPLOAD_DIR ||
-    path.join(path.dirname(__dirname), '..', 'uploads');
+  const rawUploadDir =
+    process.env.UPLOAD_DIR ??
+    path.join(path.dirname(__dirname), '..', '..', 'uploads');
+  const uploadDir = path.resolve(path.normalize(rawUploadDir));
+  console.log('[config] uploadDir (resolved):', uploadDir);
   const maxFileSizeBytes = getEnvNumber(
     'MAX_FILE_SIZE_BYTES',
     DEFAULT_FILE_LIMITS.maxFileSizeBytes
@@ -35,7 +37,7 @@ export function loadConfig(): ServerConfig {
     'MAX_TOTAL_SIZE_BYTES',
     DEFAULT_FILE_LIMITS.maxTotalSizeBytes
   );
-  const tempFileTtlSeconds = getEnvNumber('TEMP_FILE_TTL_SECONDS', 300);
+  const tempFileTtlSeconds = getEnvNumber('TEMP_FILE_TTL_SECONDS', 3600);
 
   return {
     port,

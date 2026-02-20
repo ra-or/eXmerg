@@ -82,6 +82,10 @@ export const translations: Record<string, { de: string; en: string }> = {
   'history.secAgo':          { de: 'vor {n} Sek.', en: '{n} sec ago' },
   'history.minAgo':         { de: 'vor {n} Min.', en: '{n} min ago' },
   'history.hourAgo':        { de: 'vor {n} Std.', en: '{n} hr ago' },
+  'history.storageUsed':    { de: 'Gesamter lokaler Speicher: {size}', en: 'Total local storage: {size}' },
+  'history.clearLocal':     { de: 'Lokale Dateien löschen', en: 'Clear local files' },
+  'history.clearEntire':    { de: 'Gesamten Verlauf löschen', en: 'Clear entire history' },
+  'history.delete':         { de: 'Löschen', en: 'Delete' },
 
   // File list
   'files.selectedLabel':     { de: 'ausgewählt', en: 'selected' },

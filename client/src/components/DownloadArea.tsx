@@ -1,9 +1,52 @@
+import { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
 
 export function DownloadArea() {
   const downloadUrl = useStore((s) => s.downloadUrl);
   const downloadFilename = useStore((s) => s.downloadFilename);
+  const lastMergeHistoryMeta = useStore((s) => s.lastMergeHistoryMeta);
   const reset = useStore((s) => s.reset);
+  const { saveMerge, downloadMerge, hasLocalBlob, actionLoading } = useLocalMergeHistory();
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!downloadFilename) return;
+    setDownloading(true);
+    try {
+      // Zuerst aus dem Browser (IndexedDB), falls schon nach Merge gespeichert
+      if (lastMergeHistoryMeta && hasLocalBlob(lastMergeHistoryMeta.id)) {
+        await downloadMerge(lastMergeHistoryMeta.id);
+        setDownloading(false);
+        return;
+      }
+      // Sonst einmalig vom Server holen und anzeigen
+      if (!downloadUrl) return;
+      const res = await fetch(downloadUrl);
+      const blob = await res.blob();
+      if (lastMergeHistoryMeta) {
+        await saveMerge(blob, {
+          id: lastMergeHistoryMeta.id,
+          filename: downloadFilename,
+          mergeOptions: lastMergeHistoryMeta.mergeOptions,
+          createdAt: Date.now(),
+        });
+      }
+      const url = URL.createObjectURL(blob);
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadFilename;
+        a.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      if (downloadUrl) window.open(downloadUrl, '_blank');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (!downloadUrl || !downloadFilename) return null;
 
@@ -23,16 +66,17 @@ export function DownloadArea() {
           <p className="text-xs text-zinc-500 mt-0.5 truncate">{downloadFilename}</p>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            <a
-              href={downloadUrl}
-              download={downloadFilename}
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={downloading || actionLoading}
               className="btn-primary"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Herunterladen
-            </a>
+              {downloading || actionLoading ? '…' : 'Herunterladen'}
+            </button>
 
             <button
               type="button"
