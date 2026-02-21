@@ -171,13 +171,22 @@ export async function loadSheet(source: SheetSourceRef): Promise<{ wb: ExcelJS.W
 
 /**
  * Lädt eine Datei von Disk und parst sie zu einem ExcelJS-Workbook.
- * Jede Datei wird nur einmal geladen und nach der Verarbeitung freigegeben.
+ * .xls (Excel 97–2003) wird per SheetJS in XLSX gewandelt und dann mit ExcelJS geladen.
  */
 async function loadWorkbook(f: FileRef): Promise<ExcelJS.Workbook> {
   const ext = getExtension(f.filename);
-  if (ext === '.xlsx' || ext === '.xls') {
+  if (ext === '.xlsx') {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(f.filePath);
+    return wb;
+  }
+  if (ext === '.xls') {
+    const buf = await readFile(f.filePath);
+    const XLSX = await import('xlsx');
+    const sheetWb = XLSX.read(buf, { type: 'buffer' });
+    const xlsxBuf = XLSX.write(sheetWb, { type: 'buffer', bookType: 'xlsx' });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(xlsxBuf as unknown as ArrayBuffer);
     return wb;
   }
   if (ext === '.ods') {
