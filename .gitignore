@@ -5,6 +5,10 @@ node_modules
 dist
 build
 
+# client build artifacts (vite.config.ts is source; .js/.d.ts are emitted)
+client/vite.config.js
+client/vite.config.d.ts
+
 # coverage
 coverage/
 

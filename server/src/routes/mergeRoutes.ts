@@ -81,9 +81,12 @@ const __routesDir = path.dirname(fileURLToPath(import.meta.url));
 const __serverRoot = path.join(__routesDir, '..', '..');
 
 /** Dev = TypeScript via tsx loader; Prod = kompiliertes JS aus dist. */
-function getWorkerExecArgs(workerScript: string, inputJsonPath: string): { execPath: string; args: string[] } {
+function getWorkerExecArgs(
+  workerScript: string,
+  inputJsonPath: string,
+  isDev: boolean
+): { execPath: string; args: string[] } {
   const execPath = process.execPath;
-  const isDev = process.env.NODE_ENV !== 'production';
   if (isDev) {
     return { execPath, args: ['--import', 'tsx', workerScript, inputJsonPath] };
   }
@@ -110,7 +113,7 @@ function runMergeWorker(
     ? path.join(__routesDir, '..', 'workers', 'mergeWorker.ts')
     : path.join(__serverRoot, 'dist', 'workers', 'mergeWorker.js');
   const inputJsonPath = path.join(workerDir, `${uuidv4()}_input.json`);
-  const { execPath, args } = getWorkerExecArgs(workerScript, inputJsonPath);
+  const { execPath, args } = getWorkerExecArgs(workerScript, inputJsonPath, isDev);
 
   let child: ReturnType<typeof spawn> | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;

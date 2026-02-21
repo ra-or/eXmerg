@@ -1,13 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { ServerConfig, FileLimitConfig } from 'shared';
+import type { ServerConfig } from 'shared';
 import { DEFAULT_FILE_LIMITS as SHARED_DEFAULTS } from 'shared';
-
-const DEFAULT_FILE_LIMITS: FileLimitConfig = {
-  maxFileSizeBytes: SHARED_DEFAULTS.maxFileSizeBytes,
-  maxFilesPerRequest: SHARED_DEFAULTS.maxFilesPerRequest,
-  maxTotalSizeBytes: SHARED_DEFAULTS.maxTotalSizeBytes,
-};
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,15 +21,15 @@ export function loadConfig(): ServerConfig {
   console.log('[config] uploadDir (resolved):', uploadDir);
   const maxFileSizeBytes = getEnvNumber(
     'MAX_FILE_SIZE_BYTES',
-    DEFAULT_FILE_LIMITS.maxFileSizeBytes
+    SHARED_DEFAULTS.maxFileSizeBytes
   );
   const maxFilesPerRequest = getEnvNumber(
     'MAX_FILES_PER_REQUEST',
-    DEFAULT_FILE_LIMITS.maxFilesPerRequest
+    SHARED_DEFAULTS.maxFilesPerRequest
   );
   const maxTotalSizeBytes = getEnvNumber(
     'MAX_TOTAL_SIZE_BYTES',
-    DEFAULT_FILE_LIMITS.maxTotalSizeBytes
+    SHARED_DEFAULTS.maxTotalSizeBytes
   );
   const tempFileTtlSeconds = getEnvNumber('TEMP_FILE_TTL_SECONDS', 3600);
 

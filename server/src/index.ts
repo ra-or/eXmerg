@@ -36,8 +36,12 @@ app.use('/api', mergeRoutes);
 
 // Production: gebaute Client-App ausliefern (Docker / gesetzter client/dist)
 if (fs.existsSync(clientDistPath)) {
+  // Startseite explizit mit no-store ausliefern (vor static), damit nach Deploy sofort die neue App kommt
+  app.get(['/', ''], (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
   app.use(express.static(clientDistPath));
-  // index.html nie cachen, damit nach neuem Deploy sofort die neue App geladen wird
   app.get('*', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.sendFile(path.join(clientDistPath, 'index.html'));

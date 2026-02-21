@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=512 tsx watch src/index.ts",
+    "dev": "cross-env PORT=3004 NODE_OPTIONS=--max-old-space-size=512 tsx watch src/index.ts",
     "build": "tsc",
     "start": "cross-env NODE_OPTIONS=--max-old-space-size=512 node dist/index.js",
     "test": "vitest run",

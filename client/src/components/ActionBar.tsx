@@ -111,7 +111,10 @@ export function ActionBar() {
     setEditingName(false);
   };
 
-  const getEffectiveOptions = useCallback(() => mergeOptions, [mergeOptions]);
+  const getEffectiveOptions = useCallback(
+    () => ({ ...mergeOptions, outputFormat }),
+    [mergeOptions, outputFormat]
+  );
 
   const handleCancelMerge = useCallback(async () => {
     const id = mergeIdRef.current;

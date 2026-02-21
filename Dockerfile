@@ -20,8 +20,9 @@ RUN npm run build && npm prune --omit=dev
 # ─── Stage 2: Runtime (nur Backend) ─────────────────────────────────────────
 FROM node:20-alpine AS runtime
 
-# Temporär: unzip für Datei-Integritätscheck (unzip -t <xlsx> im Container)
-RUN apk add --no-cache unzip
+# unzip = Datei-Integritätscheck; LibreOffice = XLSX→ODS mit vollständigem Styling (Farben, Schriften, etc.)
+RUN apk add --no-cache unzip && \
+    apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/edge/community libreoffice
 
 ENV NODE_ENV=production
 
