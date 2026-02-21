@@ -35,6 +35,23 @@ function cloneStyle(style: Partial<ExcelJS.Style>): Partial<ExcelJS.Style> {
   }
 }
 
+/** Zeilen-Style aus Row lesen (model.style oder direkte Style-Properties). Export für mergeService. */
+export function getRowStyle(row: ExcelJS.Row): Partial<ExcelJS.Style> | null {
+  const model = (row as ExcelJS.Row & { model?: { style?: Partial<ExcelJS.Style> } }).model;
+  if (model?.style && Object.keys(model.style).length > 0) {
+    return cloneStyle(model.style);
+  }
+  const style: Partial<ExcelJS.Style> = {};
+  const r = row as unknown as Record<string, unknown>;
+  if (r.font && typeof r.font === 'object') style.font = r.font as Partial<ExcelJS.Font>;
+  if (r.fill && typeof r.fill === 'object') style.fill = r.fill as ExcelJS.Fill;
+  if (r.alignment && typeof r.alignment === 'object') style.alignment = r.alignment as Partial<ExcelJS.Alignment>;
+  if (r.border && typeof r.border === 'object') style.border = r.border as Partial<ExcelJS.Borders>;
+  if (r.numFmt && typeof r.numFmt === 'string') style.numFmt = r.numFmt;
+  if (Object.keys(style).length === 0) return null;
+  return style;
+}
+
 /**
  * Bereitet den Zellwert fürs Kopieren vor.
  * Formeln werden mit ihrem gecachten Ergebnis beibehalten.
@@ -150,14 +167,23 @@ export function copyWorksheetCells(
     if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
     if (srcRow.hidden) destRow.hidden = true;
 
+    const rowStyle = getRowStyle(srcRow);
+    if (rowStyle && Object.keys(rowStyle).length > 0) {
+      try {
+        (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = cloneStyle(rowStyle) as ExcelJS.Style;
+      } catch { /* ignore */ }
+    }
+
     srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
-      // Slave-Zellen einer Merge-Range überspringen
       if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
 
       const destCell = dest.getCell(rowNum, colNum);
       destCell.value = getValue(srcCell, rowNum, colNum);
 
-      const style = srcCell.style;
+      const cellStyle = srcCell.style;
+      const style = cellStyle && Object.keys(cellStyle).length > 0
+        ? cellStyle
+        : rowStyle;
       if (style && Object.keys(style).length > 0) {
         try {
           destCell.style = cloneStyle(style) as ExcelJS.Style;

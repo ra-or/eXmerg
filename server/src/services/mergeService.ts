@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'fs/promises';
 import type { SpreadsheetMergeOptions } from 'shared';
 import { getExtension } from 'shared';
 import { parseOdsToWorkbook } from '../processing/parseOdsToWorkbook.js';
-import { copyWorksheet, prepareValue } from '../processing/copySheet.js';
+import { copyWorksheet, getRowStyle, prepareValue } from '../processing/copySheet.js';
 
 /** Pfad zur Warnings-Datei neben der Output-Datei. */
 export function warningsPath(outputFilePath: string): string {
@@ -434,11 +434,18 @@ async function copyFilesToSheets(
         const destRow = destWs.getRow(rowNum);
         if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
         if (srcRow.hidden) destRow.hidden = true;
+        const rowStyle = getRowStyle(srcRow);
+        if (rowStyle && Object.keys(rowStyle).length > 0) {
+          try {
+            (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = JSON.parse(JSON.stringify(rowStyle)) as ExcelJS.Style;
+          } catch { /* ignorieren */ }
+        }
         srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
           if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
           const destCell = destRow.getCell(colNum);
           destCell.value = prepareValue(srcCell);
-          const style = srcCell.style;
+          const cellStyle = srcCell.style;
+          const style = cellStyle && Object.keys(cellStyle).length > 0 ? cellStyle : rowStyle;
           if (style && Object.keys(style).length > 0) {
             try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignorieren */ }
           }
@@ -495,11 +502,18 @@ async function copyFilesToSheets(
         const destRow = destWs.getRow(rowNum);
         if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
         if (srcRow.hidden) destRow.hidden = true;
+        const rowStyle = getRowStyle(srcRow);
+        if (rowStyle && Object.keys(rowStyle).length > 0) {
+          try {
+            (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = JSON.parse(JSON.stringify(rowStyle)) as ExcelJS.Style;
+          } catch { /* ignorieren */ }
+        }
         srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
           if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
           const destCell = destRow.getCell(colNum);
           destCell.value = prepareValue(srcCell);
-          const style = srcCell.style;
+          const cellStyle = srcCell.style;
+          const style = cellStyle && Object.keys(cellStyle).length > 0 ? cellStyle : rowStyle;
           if (style && Object.keys(style).length > 0) {
             try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignorieren */ }
           }
@@ -626,11 +640,18 @@ async function mergeAllToOneSheetFormatted(
         const destRowNum = rowOffset + srcRowNum;
         const destRow = destWs.getRow(destRowNum);
         if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
+        const rowStyle = getRowStyle(srcRow);
+        if (rowStyle && Object.keys(rowStyle).length > 0) {
+          try {
+            (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = JSON.parse(JSON.stringify(rowStyle)) as ExcelJS.Style;
+          } catch { /* ignore */ }
+        }
         srcRow.eachCell({ includeEmpty: true }, (srcCell, srcColNum) => {
           if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
           const destCell = destRow.getCell(colOffset + srcColNum);
           destCell.value = prepareValue(srcCell);
-          const style = srcCell.style;
+          const cellStyle = srcCell.style;
+          const style = cellStyle && Object.keys(cellStyle).length > 0 ? cellStyle : rowStyle;
           if (style && Object.keys(style).length > 0) {
             try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignore */ }
           }
@@ -674,11 +695,18 @@ async function mergeAllToOneSheetFormatted(
       const destRowNum = rowOffset + srcRowNum;
       const destRow = destWs.getRow(destRowNum);
       if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
+      const rowStyle = getRowStyle(srcRow);
+      if (rowStyle && Object.keys(rowStyle).length > 0) {
+        try {
+          (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = JSON.parse(JSON.stringify(rowStyle)) as ExcelJS.Style;
+        } catch { /* ignore */ }
+      }
       srcRow.eachCell({ includeEmpty: true }, (srcCell, srcColNum) => {
         if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
         const destCell = destRow.getCell(colOffset + srcColNum);
         destCell.value = prepareValue(srcCell);
-        const style = srcCell.style;
+        const cellStyle = srcCell.style;
+        const style = cellStyle && Object.keys(cellStyle).length > 0 ? cellStyle : rowStyle;
         if (style && Object.keys(style).length > 0) {
           try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignore */ }
         }
@@ -728,11 +756,18 @@ async function writeSheetToStream(
     const destRow = destStreamWs.getRow(rowNum);
     if (srcRow.height && srcRow.height > 0) destRow.height = srcRow.height;
     if (srcRow.hidden) destRow.hidden = true;
+    const rowStyle = getRowStyle(srcRow);
+    if (rowStyle && Object.keys(rowStyle).length > 0) {
+      try {
+        (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = JSON.parse(JSON.stringify(rowStyle)) as ExcelJS.Style;
+      } catch { /* ignorieren */ }
+    }
     srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
       if (srcCell.isMerged && srcCell.address !== srcCell.master.address) return;
       const destCell = destRow.getCell(colNum);
       destCell.value = prepareValue(srcCell);
-      const style = srcCell.style;
+      const cellStyle = srcCell.style;
+      const style = cellStyle && Object.keys(cellStyle).length > 0 ? cellStyle : rowStyle;
       if (style && Object.keys(style).length > 0) {
         try { destCell.style = JSON.parse(JSON.stringify(style)) as ExcelJS.Style; } catch { /* ignorieren */ }
       }
