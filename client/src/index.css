@@ -72,3 +72,27 @@ html.dark .file-added-flash {
   50% { box-shadow: inset 0 0 0 999px rgba(52, 211, 153, 0.12); }
   100% { box-shadow: none; }
 }
+
+/* Leuchteffekt für Herunterladen-Button (bis er einmal geklickt wurde) */
+@keyframes download-glow {
+  0%, 100% {
+    box-shadow: 0 0 12px 2px rgba(16, 185, 129, 0.5), 0 0 24px 4px rgba(16, 185, 129, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 20px 6px rgba(16, 185, 129, 0.6), 0 0 36px 8px rgba(16, 185, 129, 0.3);
+  }
+}
+html.dark .btn-download-glow {
+  animation: download-glow-dark 2s ease-in-out infinite;
+}
+@keyframes download-glow-dark {
+  0%, 100% {
+    box-shadow: 0 0 14px 3px rgba(52, 211, 153, 0.45), 0 0 28px 6px rgba(52, 211, 153, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 22px 8px rgba(52, 211, 153, 0.55), 0 0 40px 10px rgba(52, 211, 153, 0.28);
+  }
+}
+.btn-download-glow {
+  animation: download-glow 2s ease-in-out infinite;
+}

@@ -54,7 +54,7 @@ export const translations: Record<string, { de: string; en: string }> = {
   'action.processing':       { de: 'Verarbeite…', en: 'Processing…' },
   'action.queue':            { de: 'Warteschlange (Pos. {n})…', en: 'Queue (pos. {n})…' },
   'action.mergeComplete':    { de: 'Merge abgeschlossen', en: 'Merge complete' },
-  'action.mergeSuccessMessage': { de: 'Merge abgeschlossen – {filename} wurde heruntergeladen.', en: 'Merge complete – {filename} has been downloaded.' },
+  'action.mergeSuccessMessage': { de: 'Merge abgeschlossen – {filename} ist bereit zum Herunterladen.', en: 'Merge complete – {filename} is ready to download.' },
   'action.mergeAgainShort':   { de: 'Nochmal mergen', en: 'Merge again' },
   'action.closeResult':      { de: 'Ergebnis schließen', en: 'Close result' },
   'action.download':         { de: 'Herunterladen', en: 'Download' },

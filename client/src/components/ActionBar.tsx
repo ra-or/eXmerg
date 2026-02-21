@@ -34,6 +34,7 @@ export function ActionBar() {
   const reset            = useStore((s) => s.reset);
   const { saveMerge, downloadMerge, hasLocalBlob, actionLoading } = useLocalMergeHistory();
   const [downloadBarLoading, setDownloadBarLoading] = useState(false);
+  const [downloadButtonUsed, setDownloadButtonUsed] = useState(false);
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput]     = useState('');
@@ -93,6 +94,11 @@ export function ActionBar() {
       inputRef.current.setSelectionRange(0, dotIdx >= 0 ? dotIdx : nameInput.length);
     }
   }, [editingName]);
+
+  // Leuchteffekt zurücksetzen bei neuem Ergebnis
+  useEffect(() => {
+    if (downloadUrl && downloadFilename) setDownloadButtonUsed(false);
+  }, [downloadUrl, downloadFilename]);
 
   const startEditing = () => { setNameInput(outputFilename); setEditingName(true); };
   const commitName   = () => {
@@ -439,24 +445,6 @@ export function ActionBar() {
             <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0">
               <button
                 type="button"
-                onClick={handleDownloadWithSave}
-                disabled={downloadBarLoading || actionLoading}
-                className="btn-primary py-1.5 px-3 text-xs"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                {downloadBarLoading || actionLoading ? '…' : t('action.download')}
-              </button>
-              <button
-                type="button"
-                onClick={() => { clearResult(); document.getElementById('upload-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-                className="btn-secondary py-1.5 px-3 text-xs"
-              >
-                {t('action.mergeAgainShort')}
-              </button>
-              <button
-                type="button"
                 onClick={clearResult}
                 className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-400 p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-surface-700 shrink-0"
                 title={t('action.closeResult')}
@@ -523,8 +511,32 @@ export function ActionBar() {
 
             <div className="hidden sm:block h-6 w-px bg-zinc-300 dark:bg-surface-600 shrink-0" />
 
-            {/* Zeile 0 (mobile) / Rechts (desktop): Buttons */}
+            {/* Zeile 0 (mobile) / Rechts (desktop): Buttons – Download links, damit Neu mergen nicht springt */}
             <div className="flex items-center gap-2 order-1 sm:order-2">
+
+              {/* Herunterladen (nur bei Ergebnis – links vom Neu-mergen-Button) */}
+              {hasResult ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDownloadButtonUsed(true);
+                    handleDownloadWithSave();
+                  }}
+                  disabled={downloadBarLoading || actionLoading}
+                  className={[
+                    'btn-primary py-2.5 px-4 sm:px-5 text-sm font-bold tracking-wide shrink-0 ring-2 ring-emerald-400 ring-offset-2 ring-offset-white dark:ring-offset-surface-900 shadow-lg shadow-emerald-500/25',
+                    !downloadButtonUsed ? 'btn-download-glow' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>{downloadBarLoading || actionLoading ? '…' : t('action.download')}</span>
+                </button>
+              ) : (
+                /* Platzhalter in gleicher Breite wie Herunterladen-Button, damit „Neu mergen“ nicht springt */
+                <div className="w-[8.5rem] shrink-0" aria-hidden />
+              )}
 
               {/* Merge-Button */}
               <button
