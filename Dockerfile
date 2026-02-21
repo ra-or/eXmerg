@@ -36,6 +36,7 @@ COPY server/package.json server/
 COPY --from=builder /app/node_modules node_modules
 COPY --from=builder /app/shared/dist shared/dist
 COPY --from=builder /app/server/dist server/dist
+COPY --from=builder /app/client/dist client/dist
 
 # Server starten (Port 3003)
 EXPOSE 3003

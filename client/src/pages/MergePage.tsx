@@ -35,8 +35,10 @@ export function MergePage() {
       {/* pb-24 = Platz für die sticky Footer-Leiste */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 md:px-6 pt-5 pb-28 space-y-4">
 
-        {/* Upload-Zone (kompakt) */}
-        <UploadArea />
+        {/* Upload-Zone (kompakt) – id für Fokus nach „Nochmal mergen“ */}
+        <div id="upload-area">
+          <UploadArea />
+        </div>
 
         {/* Datei-Liste */}
         <FileList />

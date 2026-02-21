@@ -111,7 +111,7 @@ export function UploadArea() {
       {/* Text */}
       <div className="flex-1 min-w-0">
         <p className={['text-sm font-medium', isDragOver ? 'text-emerald-600 dark:text-emerald-300' : 'text-zinc-700 dark:text-zinc-300'].join(' ')}>
-          {isDragOver ? t('upload.dropNow') : full ? t('upload.maxReached') : t('upload.hint')}
+          {isDragOver ? t('upload.dropNow') : full ? t('upload.maxReached') : fileCount === 0 ? t('upload.hintEmpty') : t('upload.hint')}
         </p>
         <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
           {t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}

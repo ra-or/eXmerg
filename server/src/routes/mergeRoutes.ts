@@ -15,6 +15,7 @@ import type {
 } from 'shared';
 import { isSpreadsheetFile } from 'shared';
 import { validateExtension, validateFileSize, validateTotalSize, getValidationErrorMessage } from 'shared';
+import { mergeOptionsSchema, downloadQuerySchema } from '../validation/schemas.js';
 import type { WorkerPayload } from '../workers/mergeWorker.js';
 
 // Verlauf wird client-seitig (localStorage) verwaltet, kein Server-State nötig.
@@ -367,9 +368,19 @@ router.post(
 
     let options: MergeOptions;
     try {
-      options = JSON.parse(optionsStr) as MergeOptions;
+      const parsed = JSON.parse(optionsStr) as unknown;
+      const result = mergeOptionsSchema.safeParse(parsed);
+      if (!result.success) {
+        const first = result.error.flatten().fieldErrors;
+        const msg = typeof first.mode?.[0] === 'string' ? first.mode[0]
+          : typeof first.outputType?.[0] === 'string' ? first.outputType[0]
+          : result.error.errors[0]?.message ?? 'Ungültige Merge-Optionen.';
+        res.status(400).json({ success: false, error: msg } as MergeErrorResponse);
+        return;
+      }
+      options = result.data as MergeOptions;
     } catch {
-      res.status(400).json({ success: false, error: 'Ungültige Merge-Optionen.' } as MergeErrorResponse);
+      res.status(400).json({ success: false, error: 'Ungültige Merge-Optionen (kein gültiges JSON).' } as MergeErrorResponse);
       return;
     }
 
@@ -561,18 +572,21 @@ router.delete(
 router.get(
   '/download',
   asyncHandler(async (req: Request, res: Response) => {
-    const id = req.query.id as string;
-    const name = (req.query.name as string) || 'download';
-    const subdir = req.query.subdir as string | undefined;
-
-    if (!id || id.includes('..') || path.isAbsolute(id)) {
-      res.status(400).json({ success: false, error: 'Parameter id fehlt oder ungültig.' });
+    const raw = req.query as Record<string, string | string[] | undefined>;
+    const query = {
+      id: typeof raw.id === 'string' ? raw.id : Array.isArray(raw.id) ? raw.id[0] : undefined,
+      name: typeof raw.name === 'string' ? raw.name : Array.isArray(raw.name) ? raw.name[0] : undefined,
+      subdir: typeof raw.subdir === 'string' ? raw.subdir : Array.isArray(raw.subdir) ? raw.subdir[0] : undefined,
+      fmt: typeof raw.fmt === 'string' ? raw.fmt : Array.isArray(raw.fmt) ? raw.fmt[0] : undefined,
+    };
+    const result = downloadQuerySchema.safeParse(query);
+    if (!result.success) {
+      const msg = result.error.errors[0]?.message ?? 'Parameter id fehlt oder ungültig.';
+      res.status(400).json({ success: false, error: msg });
       return;
     }
-    if (subdir !== undefined && (subdir.includes('..') || path.isAbsolute(subdir))) {
-      res.status(400).json({ success: false, error: 'Parameter subdir ungültig.' });
-      return;
-    }
+    const { id, name: nameParam, subdir } = result.data;
+    const name = nameParam ?? 'download';
     const baseDir = subdir ? path.join(uploadDir, subdir) : uploadDir;
     const fullPath = path.join(baseDir, path.basename(id));
     const resolvedUpload = path.resolve(uploadDir) + path.sep;
@@ -595,7 +609,7 @@ router.get(
     console.log('[download] path:', fullPath);
     console.log('[download] size:', stat.size);
 
-    const isOdsFmt = (req.query.fmt as string) === 'ods' || name.endsWith('.ods');
+    const isOdsFmt = result.data.fmt === 'ods' || name.endsWith('.ods');
     const contentType = isOdsFmt
       ? 'application/vnd.oasis.opendocument.spreadsheet'
       : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

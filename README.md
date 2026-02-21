@@ -28,6 +28,27 @@ Im Browser: **http://localhost:3002**
 - Der Vite-Dev-Server proxied `/api` an den Backend-Server (Standard: `http://localhost:3003`).
 - **Backend auf anderem Rechner (z. B. Linux-Server):** `VITE_PROXY_TARGET=http://<Server-IP>:3003 npm run dev` – dann laufen Client lokal (Windows) und API auf dem Server.
 
+## Tests
+
+- **Client:** Vitest + React Testing Library (`npm test` / `npm run test:coverage` vom Root).
+- **Server:** Vitest, Node-Umgebung (`npm run test --prefix server`).
+
+```bash
+# Client-Tests (vom Root)
+npm test
+
+# Client mit Coverage
+npm run test:coverage
+
+# Server-Tests
+npm run test --prefix server
+
+# Alle Tests (Client + Server)
+npm run test && npm run test --prefix server
+```
+
+**CI:** Bei Push/PR auf `main` oder `master` laufen Client- und Server-Tests automatisch (GitHub Actions, siehe `.github/workflows/ci.yml`).
+
 ## Build (Produktion)
 
 ```bash

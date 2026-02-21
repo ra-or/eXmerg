@@ -1,9 +1,15 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import mergeRoutes from './routes/mergeRoutes.js';
 import { startTempCleanup } from './processing/tempCleanup.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
 
 // ── Globale Fehler-Handler: Server bleibt auch bei Heap-OOM stabil ───────────
 process.on('uncaughtException', (err) => {
@@ -27,6 +33,14 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', mergeRoutes);
+
+// Production: gebaute Client-App ausliefern (Docker / gesetzter client/dist)
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 app.use(errorHandler);
 

@@ -6,24 +6,32 @@
   "scripts": {
     "dev": "vite --port 3002 --host",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --port 3002"
+    "preview": "vite preview --port 3002",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
     "exceljs": "4.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-query": "^3.10.0",
     "shared": "file:../shared",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.0.0",
     "@types/react": "^18.2.47",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "^2.1.0",
     "autoprefixer": "^10.4.16",
+    "jsdom": "^25.0.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^2.1.0"
   }
 }

@@ -8,18 +8,14 @@
     "dev:server": "npm run dev --prefix server",
     "build": "npm run build --prefix shared && npm run build --prefix server && npm run build --prefix client",
     "build:client": "npm run build --prefix client",
-    "build:server": "npm run build --prefix server"
+    "build:server": "npm run build --prefix server",
+    "test": "npm run test:run --prefix client",
+    "test:coverage": "npm run test:coverage --prefix client",
+    "test:watch": "npm run test --prefix client"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0"
   },
-  "workspaces": [
-    "client",
-    "server",
-    "shared"
-  ],
-  "dependencies": {
-    "@tanstack/react-query": "^5.90.21"
-  }
+  "workspaces": ["client", "server", "shared"]
 }

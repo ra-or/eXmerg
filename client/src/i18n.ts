@@ -8,6 +8,7 @@ export const translations: Record<string, { de: string; en: string }> = {
 
   // Upload
   'upload.hint':             { de: 'Dateien hierher ziehen', en: 'Drag files here' },
+  'upload.hintEmpty':        { de: 'Excel- und ODS-Dateien hierher ziehen oder Durchsuchen klicken – dann Modus wählen und Zusammenführen.', en: 'Drag Excel and ODS files here or click Browse – then choose mode and merge.' },
   'upload.dropNow':          { de: 'Dateien loslassen …', en: 'Drop files…' },
   'upload.maxReached':       { de: 'Maximale Dateianzahl erreicht', en: 'Maximum number of files reached' },
   'upload.limits':           { de: 'max. {n} Dateien · {mb} MB pro Datei · {totalMb} MB gesamt', en: 'max. {n} files · {mb} MB per file · {totalMb} MB total' },
@@ -53,6 +54,9 @@ export const translations: Record<string, { de: string; en: string }> = {
   'action.processing':       { de: 'Verarbeite…', en: 'Processing…' },
   'action.queue':            { de: 'Warteschlange (Pos. {n})…', en: 'Queue (pos. {n})…' },
   'action.mergeComplete':    { de: 'Merge abgeschlossen', en: 'Merge complete' },
+  'action.mergeSuccessMessage': { de: 'Merge abgeschlossen – {filename} wurde heruntergeladen.', en: 'Merge complete – {filename} has been downloaded.' },
+  'action.mergeAgainShort':   { de: 'Nochmal mergen', en: 'Merge again' },
+  'action.closeResult':      { de: 'Ergebnis schließen', en: 'Close result' },
   'action.download':         { de: 'Herunterladen', en: 'Download' },
   'action.longRunning':      { de: 'Merge läuft noch (über 2 Minuten) – bitte Geduld.', en: 'Merge still running (over 2 min) – please wait.' },
   'action.filenamePlaceholder': { de: 'Dateiname (mit {ext})', en: 'Filename (with {ext})' },
@@ -83,7 +87,6 @@ export const translations: Record<string, { de: string; en: string }> = {
   'history.minAgo':         { de: 'vor {n} Min.', en: '{n} min ago' },
   'history.hourAgo':        { de: 'vor {n} Std.', en: '{n} hr ago' },
   'history.storageUsed':    { de: 'Gesamter lokaler Speicher: {size}', en: 'Total local storage: {size}' },
-  'history.clearLocal':     { de: 'Lokale Dateien löschen', en: 'Clear local files' },
   'history.clearEntire':    { de: 'Gesamten Verlauf löschen', en: 'Clear entire history' },
   'history.delete':         { de: 'Löschen', en: 'Delete' },
 

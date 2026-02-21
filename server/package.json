@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--max-old-space-size=512 tsx watch src/index.ts",
     "build": "tsc",
-    "start": "cross-env NODE_OPTIONS=--max-old-space-size=512 node dist/index.js"
+    "start": "cross-env NODE_OPTIONS=--max-old-space-size=512 node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -16,7 +18,8 @@
     "shared": "file:../shared",
     "uuid": "^9.0.1",
     "vite": "7.3.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -25,6 +28,7 @@
     "@types/node": "^20.10.6",
     "@types/uuid": "^9.0.8",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.0"
   }
 }

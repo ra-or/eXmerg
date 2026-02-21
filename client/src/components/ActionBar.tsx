@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useStore, generateOutputFilename, sortFileList } from '../store/useStore';
 import { uploadFilesParallel, startMerge, subscribeToMergeProgress, cancelMerge } from '../api/client';
-import { addToLocalHistory } from './DownloadHistory';
+import { addToLocalHistory, updateLocalHistoryEntry } from './DownloadHistory';
 import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
 import { useT } from '../i18n';
 
@@ -240,6 +240,8 @@ export function ActionBar() {
                 const r = await fetch(urlToFetch);
                 if (!r.ok) return;
                 const blob = await r.blob();
+                updateLocalHistoryEntry(historyId, { size: blob.size });
+                bumpHistory(); // Verlauf neu laden, damit Dateigröße erscheint
                 await saveMerge(blob, {
                   id: historyId,
                   filename: nameWithExt,
@@ -425,30 +427,45 @@ export function ActionBar() {
       {/* ── Ergebnis-Banner ───────────────────────────────────────────── */}
       {hasResult && (
         <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
-          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 animate-slide-up">
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
-              <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <div className="flex flex-wrap items-center gap-2.5 px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 animate-slide-up">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <span className="text-xs text-emerald-400 font-medium shrink-0">{t('action.mergeComplete')}</span>
-            <span className="text-xs text-zinc-600 dark:text-zinc-500 truncate flex-1">{downloadFilename}</span>
-            <button
-              type="button"
-              onClick={handleDownloadWithSave}
-              disabled={downloadBarLoading || actionLoading}
-              className="btn-primary py-1.5 px-3 text-xs shrink-0"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              {downloadBarLoading || actionLoading ? '…' : t('action.download')}
-            </button>
-            <button type="button" onClick={clearResult} className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0" title="Ergebnis schließen">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium min-w-0">
+              {t('action.mergeSuccessMessage', { filename: downloadFilename ?? '' })}
+            </span>
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleDownloadWithSave}
+                disabled={downloadBarLoading || actionLoading}
+                className="btn-primary py-1.5 px-3 text-xs"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {downloadBarLoading || actionLoading ? '…' : t('action.download')}
+              </button>
+              <button
+                type="button"
+                onClick={() => { clearResult(); document.getElementById('upload-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                className="btn-secondary py-1.5 px-3 text-xs"
+              >
+                {t('action.mergeAgainShort')}
+              </button>
+              <button
+                type="button"
+                onClick={clearResult}
+                className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-400 p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-surface-700 shrink-0"
+                title={t('action.closeResult')}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       )}

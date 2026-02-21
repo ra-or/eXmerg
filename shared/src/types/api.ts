@@ -108,6 +108,8 @@ export interface HistoryEntry {
   timestamp: number;
   /** true wenn die Ausgabedatei ODS ist */
   isOds: boolean;
+  /** Dateigröße in Bytes (optional, wird nach Blob-Download gesetzt) */
+  size?: number;
 }
 
 export interface HistoryResponse {

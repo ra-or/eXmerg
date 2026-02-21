@@ -38,6 +38,18 @@ export function clearLocalHistory(): void {
   } catch { /* ignore */ }
 }
 
+/** Einzelnen Verlaufseintrag aktualisieren (z. B. size nach Blob-Download). */
+export function updateLocalHistoryEntry(id: string, patch: Partial<HistoryEntry>): void {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as HistoryEntry[];
+    const entry = raw.find((e) => e.id === id);
+    if (entry) {
+      Object.assign(entry, patch);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(raw));
+    }
+  } catch { /* ignore */ }
+}
+
 // ── Komponente ────────────────────────────────────────────────────────────────
 
 function timeAgo(t: (key: string, vars?: Record<string, number>) => string, ts: number): string {
@@ -77,9 +89,6 @@ export function DownloadHistory() {
   const handleDelete = async (id: string) => {
     await deleteMerge(id);
   };
-  const handleClearAll = async () => {
-    await clearAll();
-  };
   /** Gesamten Verlauf löschen: IndexedDB + Verlaufsliste (localStorage). */
   const handleClearEntireHistory = async () => {
     await clearAll();
@@ -113,16 +122,6 @@ export function DownloadHistory() {
             {t('history.storageUsed', { size: formatStorageSize(totalSize) })}
           </span>
           <span className="flex items-center gap-2">
-            {totalSize > 0 && (
-              <button
-                type="button"
-                onClick={handleClearAll}
-                disabled={actionLoading}
-                className="text-[11px] text-zinc-500 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 transition-colors disabled:opacity-50"
-              >
-                {t('history.clearLocal')}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleClearEntireHistory}
@@ -171,6 +170,12 @@ export function DownloadHistory() {
                   <span className="text-xs text-zinc-500 dark:text-zinc-600">
                     {entry.fileCount} {entry.fileCount === 1 ? t('history.file') : t('history.files')}
                   </span>
+                  {entry.size != null && entry.size >= 0 && (
+                    <>
+                      <span className="text-zinc-500 dark:text-zinc-700">·</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-600">{formatStorageSize(entry.size)}</span>
+                    </>
+                  )}
                   <span className="text-zinc-500 dark:text-zinc-700">·</span>
                   <span className="badge bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-500 border-zinc-300 dark:border-surface-600 text-[10px]">
                     {t(`mode.${entry.mode}` as 'mode.one_file_per_sheet') || entry.mode}
