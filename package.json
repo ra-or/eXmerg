@@ -1,7 +1,7 @@
 {
   "name": "exmerg",
   "private": true,
-  "description": "Lokale Webanwendung zum Mergen von Excel/ODS und ODG Dateien",
+  "description": "Lokale Webanwendung zum Mergen von Excel- und ODS-Dateien",
   "scripts": {
     "dev": "concurrently -n client,server -c blue,green \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cross-env VITE_PROXY_TARGET=http://localhost:3004 npm run dev --prefix client",

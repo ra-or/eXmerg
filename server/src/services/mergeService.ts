@@ -276,26 +276,39 @@ function toSheetCollectOptions(input: MergeSpreadsheetInput): SheetCollectOption
   return out;
 }
 
+/** Wrapper: Phase 2 (20–100 %) – skaliert Strategie-Fortschritt 0–100 auf 20–100, niemals rückwärts. */
+function wrapProgressPhase2(onProgress?: (pct: number, msg: string) => void): (pct: number, msg: string) => void {
+  let last = 20;
+  return (pct: number, msg: string) => {
+    if (!onProgress) return;
+    const scaled = Math.min(100, 20 + Math.round((pct / 100) * 80));
+    const next = Math.max(last, scaled);
+    last = next;
+    onProgress(next, msg);
+  };
+}
+
 export async function mergeSpreadsheets(input: MergeSpreadsheetInput): Promise<string[]> {
   const { files, options, outputFilePath, onProgress } = input;
   const warnings: string[] = [];
 
-  onProgress?.(1, 'Lade Sheet-Verzeichnis…');
+  onProgress?.(0, 'Lade Sheet-Verzeichnis…');
   const collectOptions = toSheetCollectOptions(input);
-  const sources = await collectSheetSources(files, collectOptions, (pct, msg) => onProgress?.(pct * 0.2, msg));
+  const sources = await collectSheetSources(files, collectOptions, (pct, msg) => onProgress?.(Math.round(pct * 0.2), msg));
 
+  const phase2Progress = wrapProgressPhase2(onProgress);
   if (options.mode === 'one_file_per_sheet') {
-    await copyFilesToSheets(sources, outputFilePath, warnings, onProgress);
+    await copyFilesToSheets(sources, outputFilePath, warnings, phase2Progress);
   } else if (options.mode === 'consolidated_sheets') {
-    await copyFilesToSheetsWithSummary(sources, outputFilePath, warnings, onProgress);
+    await copyFilesToSheetsWithSummary(sources, outputFilePath, warnings, phase2Progress);
   } else if (options.mode === 'all_to_one_sheet') {
-    await mergeAllToOneSheetFormatted(sources, false, outputFilePath, warnings, onProgress);
+    await mergeAllToOneSheetFormatted(sources, false, outputFilePath, warnings, phase2Progress);
   } else if (options.mode === 'all_with_source_column') {
-    await mergeAllToOneSheetFormatted(sources, true, outputFilePath, warnings, onProgress);
+    await mergeAllToOneSheetFormatted(sources, true, outputFilePath, warnings, phase2Progress);
   } else if (options.mode === 'row_per_file') {
-    await mergeRowPerFile(sources, true, outputFilePath, warnings, onProgress);
+    await mergeRowPerFile(sources, true, outputFilePath, warnings, phase2Progress);
   } else if (options.mode === 'row_per_file_no_sum') {
-    await mergeRowPerFile(sources, false, outputFilePath, warnings, onProgress);
+    await mergeRowPerFile(sources, false, outputFilePath, warnings, phase2Progress);
   } else {
     throw new Error(`Unbekannter Merge-Modus: ${(options as SpreadsheetMergeOptions).mode}`);
   }

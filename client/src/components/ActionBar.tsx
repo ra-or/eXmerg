@@ -4,12 +4,20 @@ import { uploadFilesParallel, startMerge, subscribeToMergeProgress, cancelMerge 
 import { addToLocalHistory, updateLocalHistoryEntry } from './DownloadHistory';
 import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
 import { useT } from '../i18n';
+import { Portal } from './ui/Portal';
+import { Z_INDEX, STICKY_FOOTER_HEIGHT_PX } from '../constants/zIndex';
 
 const UPLOAD_CONCURRENCY = 3;
 
-export function ActionBar() {
+export interface ActionBarProps {
+  /** Legacy: wird nicht mehr verwendet; Sticky-Wrapper liegt in MergePage. */
+  embedded?: boolean;
+}
+
+export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
   const t = useT();
   const files            = useStore((s) => s.files);
+  const selectedFileIds  = useStore((s) => s.selectedFileIds);
   const fileSortOrder    = useStore((s) => s.fileSortOrder);
   const mergeOptions     = useStore((s) => s.mergeOptions);
   const outputFormat     = useStore((s) => s.outputFormat);
@@ -35,6 +43,9 @@ export function ActionBar() {
   const { saveMerge, downloadMerge, hasLocalBlob, actionLoading } = useLocalMergeHistory();
   const [downloadBarLoading, setDownloadBarLoading] = useState(false);
   const [downloadButtonUsed, setDownloadButtonUsed] = useState(false);
+  const [successBannerPhase, setSuccessBannerPhase] = useState<'ready' | 'downloading' | 'fading'>('ready');
+  const [successBannerFaded, setSuccessBannerFaded] = useState(false);
+  const successBannerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput]     = useState('');
@@ -95,10 +106,20 @@ export function ActionBar() {
     }
   }, [editingName]);
 
-  // Leuchteffekt zurücksetzen bei neuem Ergebnis
+  // Leuchteffekt und Erfolgs-Banner zurücksetzen bei neuem Ergebnis
   useEffect(() => {
-    if (downloadUrl && downloadFilename) setDownloadButtonUsed(false);
+    if (downloadUrl && downloadFilename) {
+      setDownloadButtonUsed(false);
+      setSuccessBannerFaded(false);
+      setSuccessBannerPhase('ready');
+    }
   }, [downloadUrl, downloadFilename]);
+
+  // Timeouts für Erfolgs-Banner-Fade aufräumen
+  useEffect(() => () => {
+    successBannerTimeoutsRef.current.forEach((id) => clearTimeout(id));
+    successBannerTimeoutsRef.current = [];
+  }, []);
 
   const startEditing = () => { setNameInput(outputFilename); setEditingName(true); };
   const commitName   = () => {
@@ -128,7 +149,7 @@ export function ActionBar() {
   }, []);
 
   const handleMerge = async () => {
-    if (!files.length || isProcessing) return;
+    if (!mergeCount || isProcessing) return;
 
     setProcessing(true);
     setMergeError(null);
@@ -140,8 +161,8 @@ export function ActionBar() {
     setSseProgress(0);
     setSseMsg('');
 
-    // Fortschritts-Arrays zurücksetzen
-    fileProgressesRef.current = new Array(files.length).fill(0);
+    // Fortschritts-Arrays zurücksetzen (nach Anzahl der zu mergenden Dateien)
+    fileProgressesRef.current = new Array(mergeCount).fill(0);
     setUploadedCount(0);
     setUploadAggregate(0);
 
@@ -152,7 +173,7 @@ export function ActionBar() {
       setUploadPhase('uploading');
       setUploadProgress(0);
 
-      const toUpload  = files
+      const toUpload  = filesToMerge
         .map((f, i) => ({ item: f, i }))
         .filter(({ item }) => !item.preUploadedId && item.file);
 
@@ -165,26 +186,23 @@ export function ActionBar() {
           fileProgressesRef.current[fileIdx] = pct;
           if (pct >= 100) completedCount++;
           setUploadedCount(completedCount);
-          const total = files.length;
+          const total = mergeCount;
           const agg = fileProgressesRef.current.reduce((s, p) => s + p, 0) / total;
           setUploadAggregate(Math.round(agg));
           setUploadProgress(Math.round(agg));
         },
       );
 
-      // fileId-Map: Upload-Index (Reihenfolge in files) → fileId
+      // fileId-Map: Upload-Index (Reihenfolge in filesToMerge) → fileId
       const fileIdMap = new Map(uploadResults.map(({ idx, fileId }) => [idx, fileId]));
-
-      // Merge-Reihenfolge = sortierte Liste (Nutzer-Einstellung)
-      const sortedFiles = sortFileList(files, fileSortOrder);
 
       const fileIds:   string[] = [];
       const fileNames: string[] = [];
-      for (const item of sortedFiles) {
+      for (const item of filesToMerge) {
         if (item.preUploadedId) {
           fileIds.push(item.preUploadedId);
         } else {
-          const rawIndex = files.findIndex((f) => f.id === item.id);
+          const rawIndex = filesToMerge.findIndex((f) => f.id === item.id);
           const id = rawIndex >= 0 ? fileIdMap.get(rawIndex) : undefined;
           if (!id) throw new Error(`Upload für Datei ${item.filename} fehlgeschlagen.`);
           fileIds.push(id);
@@ -207,7 +225,8 @@ export function ActionBar() {
           onQueued: (pos) => setQueuePos(pos),
           onProgress: (pct, msg) => {
             setQueuePos(null);
-            setSseProgress(pct);
+            const next = Math.min(100, Math.round(pct));
+            setSseProgress((prev) => Math.max(prev, next));
             setSseMsg(msg);
           },
           onComplete: (dlUrl, _dlFilename, warnings) => {
@@ -232,7 +251,7 @@ export function ActionBar() {
               fileId: fileIdParam,
               filename: nameWithExt,
               mode: effectiveOptions.mode,
-              fileCount: files.length,
+              fileCount: mergeCount,
               timestamp: Date.now(),
               isOds: outputFormat === 'ods',
             });
@@ -305,8 +324,12 @@ export function ActionBar() {
     URL.revokeObjectURL(url);
   };
 
+  const filesToMerge = selectedFileIds.length > 0
+    ? sortFileList(files, fileSortOrder).filter((f) => selectedFileIds.includes(f.id))
+    : sortFileList(files, fileSortOrder);
   const noFiles   = files.length === 0;
   const hasResult = !!downloadUrl && !!downloadFilename;
+  const mergeCount = filesToMerge.length;
   const ext       = outputFormat === 'ods' ? '.ods' : '.xlsx';
   const displayBasename = outputFilename.replace(/\.(xlsx|ods)$/i, '');
 
@@ -352,15 +375,15 @@ export function ActionBar() {
     if (!isProcessing) return hasResult ? t('action.mergeAgain') : t('action.merge');
     if (uploadPhase === 'uploading') {
       const done = uploadedCount;
-      const total = files.filter(f => !f.preUploadedId && f.file).length;
-      return `${t('action.uploadProgress')} (${done}/${total}) – ${uploadAggregate}%`;
+      const total = filesToMerge.filter(f => !f.preUploadedId && f.file).length;
+      return `${t('action.uploadProgress')} (${done}/${total}) – ${Math.round(uploadAggregate)}%`;
     }
     if (queuePos !== null) return t('action.queue', { n: queuePos });
-    return sseProgress > 0 ? `${t('action.processing')} ${sseProgress}%` : t('action.processing');
+    return sseProgress > 0 ? `${t('action.processing')} ${Math.round(sseProgress)}%` : t('action.processing');
   })();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-20">
+    <div className="w-full">
 
       {/* ── Long-Running-Banner ──────────────────────────────────────── */}
       {longRunning && isProcessing && (
@@ -433,32 +456,44 @@ export function ActionBar() {
         </div>
       )}
 
-      {/* ── Ergebnis-Banner ───────────────────────────────────────────── */}
-      {hasResult && (
-        <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
-          <div className="flex flex-wrap items-center gap-2.5 px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 animate-slide-up">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
-              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium min-w-0">
-              {t('action.mergeSuccessMessage', { filename: downloadFilename ?? '' })}
-            </span>
-            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0">
-              <button
-                type="button"
-                onClick={clearResult}
-                className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-400 p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-surface-700 shrink-0"
-                title={t('action.closeResult')}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      {/* ── Ergebnis-Banner: per Portal über der Sticky-Bar (vergrößert die Bar nicht) ─ */}
+      {hasResult && !successBannerFaded && (
+        <Portal>
+          <div
+            className="fixed left-0 right-0 px-4 md:px-6 flex justify-center pointer-events-none"
+            style={{ bottom: STICKY_FOOTER_HEIGHT_PX, zIndex: Z_INDEX.STICKY_FOOTER }}
+          >
+            <div
+              className={[
+                'pointer-events-auto flex flex-wrap items-center gap-2.5 px-3 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 shadow-lg animate-slide-up transition-opacity duration-[1500ms] ease-out max-w-5xl w-full',
+                successBannerPhase === 'fading' ? 'opacity-0' : 'opacity-100',
+              ].join(' ')}
+            >
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-              </button>
+              </div>
+              <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium min-w-0">
+                {successBannerPhase === 'ready'
+                  ? t('action.mergeSuccessMessage', { filename: downloadFilename ?? '' })
+                  : t('action.mergeSuccessDownloading', { filename: downloadFilename ?? '' })}
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={clearResult}
+                  className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-400 p-1.5 rounded hover:bg-zinc-200 dark:hover:bg-surface-700 shrink-0"
+                  title={t('action.closeResult')}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* ── Haupt-Leiste ──────────────────────────────────────────────── */}
@@ -523,7 +558,16 @@ export function ActionBar() {
                   type="button"
                   onClick={() => {
                     setDownloadButtonUsed(true);
+                    setSuccessBannerPhase('downloading');
                     handleDownloadWithSave();
+                    successBannerTimeoutsRef.current.forEach((id) => clearTimeout(id));
+                    successBannerTimeoutsRef.current = [];
+                    const t1 = setTimeout(() => setSuccessBannerPhase('fading'), 1200);
+                    const t2 = setTimeout(() => {
+                      setSuccessBannerFaded(true);
+                      setSuccessBannerPhase('ready');
+                    }, 2700);
+                    successBannerTimeoutsRef.current = [t1, t2];
                   }}
                   disabled={downloadBarLoading || actionLoading}
                   className={[
@@ -561,12 +605,13 @@ export function ActionBar() {
                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                     </svg>
-                    <span>{hasResult ? t('action.mergeAgain') : t('action.merge')}</span>
-                    {files.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-200 text-xs font-mono font-normal">
-                        {files.length}
-                      </span>
-                    )}
+                    <span>
+                      {hasResult
+                        ? t('action.mergeAgain')
+                        : selectedFileIds.length > 0
+                          ? t('action.mergeSelection', { n: mergeCount })
+                          : t('action.mergeAll', { totalCount: mergeCount })}
+                    </span>
                   </>
                 )}
               </button>
@@ -595,8 +640,8 @@ export function ActionBar() {
           {isProcessing && uploadPhase === 'processing' && (
             <div className="mt-2 h-1 rounded-full bg-zinc-200 dark:bg-surface-700 overflow-hidden">
               <div
-                className="h-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${sseProgress}%` }}
+                className="h-full bg-emerald-500 transition-all duration-500 ease-out"
+                style={{ width: `${Math.min(100, Math.round(sseProgress))}%` }}
               />
             </div>
           )}

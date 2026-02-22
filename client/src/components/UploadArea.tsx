@@ -1,5 +1,5 @@
-import { useCallback, useState, useEffect } from 'react';
-import { useStore } from '../store/useStore';
+import { useCallback, useState } from 'react';
+import { useStore, type RejectedFile, type UploadErrorReason } from '../store/useStore';
 import { isAllowedFile, DEFAULT_FILE_LIMITS } from 'shared';
 import { HISTORY_DRAG_TYPE } from './DownloadHistory';
 import { useT } from '../i18n';
@@ -8,51 +8,65 @@ const MAX_SIZE = DEFAULT_FILE_LIMITS.maxFileSizeBytes;
 const MAX_FILES = DEFAULT_FILE_LIMITS.maxFilesPerRequest;
 const MAX_TOTAL_BYTES = DEFAULT_FILE_LIMITS.maxTotalSizeBytes;
 
+function buildRejectedList(
+  fileList: FileList,
+  fileCount: number,
+  currentTotalBytes: number,
+): { rejected: RejectedFile[]; toAdd: File[] } {
+  const remainingCount = Math.max(0, MAX_FILES - fileCount);
+  const remainingBytes = Math.max(0, MAX_TOTAL_BYTES - currentTotalBytes);
+  const rejected: RejectedFile[] = [];
+  const validCandidates: File[] = [];
+
+  for (let i = 0; i < fileList.length; i++) {
+    const f = fileList[i];
+    if (!f) continue;
+    const reasons: UploadErrorReason[] = [];
+    if (!isAllowedFile(f.name)) reasons.push('invalidType');
+    if (f.size > MAX_SIZE) reasons.push('fileTooLarge');
+    if (reasons.length > 0) {
+      rejected.push({ name: f.name, reasons });
+    } else {
+      validCandidates.push(f);
+    }
+  }
+
+  const toAdd: File[] = [];
+  let usedBytes = 0;
+  for (const f of validCandidates) {
+    if (toAdd.length >= remainingCount) {
+      rejected.push({ name: f.name, reasons: ['totalSizeExceeded'] });
+      continue;
+    }
+    if (usedBytes + f.size > remainingBytes) {
+      rejected.push({ name: f.name, reasons: ['totalSizeExceeded'] });
+      continue;
+    }
+    toAdd.push(f);
+    usedBytes += f.size;
+  }
+
+  return { rejected, toAdd };
+}
+
 export function UploadArea() {
   const t = useT();
-  const addFiles       = useStore((s) => s.addFiles);
+  const addFiles = useStore((s) => s.addFiles);
+  const setRejectedFiles = useStore((s) => s.setRejectedFiles);
   const addHistoryFile = useStore((s) => s.addHistoryFile);
-  const filesInStore   = useStore((s) => s.files);
-  const fileCount      = filesInStore.length;
+  const filesInStore = useStore((s) => s.files);
+  const fileCount = filesInStore.length;
   const currentTotalBytes = filesInStore.reduce((s, f) => s + (f.size ?? 0), 0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [skippedMessage, setSkippedMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!skippedMessage) return;
-    const id = setTimeout(() => setSkippedMessage(null), 6000);
-    return () => clearTimeout(id);
-  }, [skippedMessage]);
 
   const validateAndAdd = useCallback(
     (fileList: FileList | null) => {
       if (!fileList?.length) return;
-      const valid: File[] = [];
-      for (let i = 0; i < fileList.length; i++) {
-        const f = fileList[i];
-        if (f && isAllowedFile(f.name) && f.size <= MAX_SIZE) valid.push(f);
-      }
-      const remainingCount = Math.max(0, MAX_FILES - fileCount);
-      const remainingBytes = Math.max(0, MAX_TOTAL_BYTES - currentTotalBytes);
-      const toAdd: File[] = [];
-      let usedBytes = 0;
-      for (const f of valid) {
-        if (toAdd.length >= remainingCount) break;
-        if (usedBytes + f.size > remainingBytes) break;
-        toAdd.push(f);
-        usedBytes += f.size;
-      }
-      const skipped = fileList.length - toAdd.length;
-      if (skipped > 0) {
-        setSkippedMessage(t('upload.skippedInvalid', {
-          n: skipped,
-          mb: Math.round(MAX_SIZE / (1024 * 1024)),
-          totalMb: Math.round(MAX_TOTAL_BYTES / (1024 * 1024)),
-        }));
-      }
+      const { rejected, toAdd } = buildRejectedList(fileList, fileCount, currentTotalBytes);
+      setRejectedFiles(rejected);
       if (toAdd.length) addFiles(toAdd);
     },
-    [addFiles, fileCount, currentTotalBytes, t]
+    [addFiles, setRejectedFiles, fileCount, currentTotalBytes]
   );
 
   const onDrop = useCallback(
@@ -113,12 +127,9 @@ export function UploadArea() {
         <p className={['text-sm font-medium', isDragOver ? 'text-emerald-600 dark:text-emerald-300' : 'text-zinc-700 dark:text-zinc-300'].join(' ')}>
           {isDragOver ? t('upload.dropNow') : full ? t('upload.maxReached') : fileCount === 0 ? t('upload.hintEmpty') : t('upload.hint')}
         </p>
-        <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
-          {t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}
-        </p>
-        {skippedMessage && (
-          <p className="text-xs text-amber-500 dark:text-amber-400 mt-1" role="alert">
-            {skippedMessage}
+        {!isDragOver && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
+            {fileCount === 0 ? t('upload.supports') : t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}
           </p>
         )}
       </div>

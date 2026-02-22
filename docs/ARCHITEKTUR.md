@@ -19,17 +19,10 @@ User wählt Dateien → Validierung (MIME, Extension, Size) → POST /preview (F
 ### 2. Merge (Tabellen)
 ```
 Dateiliste + Merge-Optionen (Mode A/B/C/D) → POST /merge (FormData + JSON options)
-→ Server: multer → MergeService (Strategy Pattern) → Excel/ODS oder ODG Pipeline
+→ Server: multer → MergeService (Strategy Pattern) → Excel/ODS Pipeline
 → Temp-Datei erstellen → Response: { downloadUrl }
 → Client: window.location / fetch blob → Download
 → Server: Cleanup temp nach Ablauf oder on-finish
-```
-
-### 3. ODG Merge (MVP)
-```
-Nur .odg Dateien → gleicher /merge Endpoint, options.outputType: 'odg'
-→ ODGService: ZIP-basiert, Dokumente hintereinander
-→ Download .odg
 ```
 
 ## Backend-Schichten
@@ -39,7 +32,7 @@ Nur .odg Dateien → gleicher /merge Endpoint, options.outputType: 'odg'
 | **Routes** | HTTP, Validierung Request, Typed Response |
 | **Controllers** | Request/Response Mapping, async wrapper |
 | **Services** | Business-Logik (Merge-Strategien, Koordination) |
-| **File Processing** | exceljs, ODG ZIP/XML, Temp-Files |
+| **File Processing** | exceljs, Temp-Files |
 | **Config** | Limits, Port, Pfade, env-basiert |
 
 ## Frontend-Schichten
@@ -64,5 +57,5 @@ Strategie-Registry im Backend: `MergeStrategyRegistry` mit `strategyId` → Hand
 
 - **Worker Queue**: Service-Interface für `processLargeMerge(jobId)` vorbereiten
 - **Presets**: Options-Struktur serialisierbar, DB/Store später ergänzbar
-- **Weitere Formate**: Export-Factory nach `outputType` (xlsx | odg)
+- **Weitere Formate**: Export-Factory nach `outputType` (xlsx / ods)
 - **Deployment**: Config über ENV, statische Client-Builds servierbar

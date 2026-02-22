@@ -8,11 +8,17 @@ export const translations: Record<string, { de: string; en: string }> = {
 
   // Upload
   'upload.hint':             { de: 'Dateien hierher ziehen', en: 'Drag files here' },
-  'upload.hintEmpty':        { de: 'Excel- und ODS-Dateien hierher ziehen oder Durchsuchen klicken – dann Modus wählen und Zusammenführen.', en: 'Drag Excel and ODS files here or click Browse – then choose mode and merge.' },
-  'upload.dropNow':          { de: 'Dateien loslassen …', en: 'Drop files…' },
+  'upload.hintEmpty':        { de: 'Dateien hier ablegen.', en: 'Drop your files here' },
+  'upload.supports':         { de: 'Unterstützt: .xlsx · .xls · .ods', en: 'Supports: .xlsx · .xls · .ods' },
+  'upload.dropNow':          { de: 'Loslassen zum Hinzufügen', en: 'Release to add' },
   'upload.maxReached':       { de: 'Maximale Dateianzahl erreicht', en: 'Maximum number of files reached' },
   'upload.limits':           { de: 'max. {n} Dateien · {mb} MB pro Datei · {totalMb} MB gesamt', en: 'max. {n} files · {mb} MB per file · {totalMb} MB total' },
   'upload.browse':           { de: 'Durchsuchen', en: 'Browse' },
+  'upload.errors.title':     { de: '{count} Datei(en) nicht hinzugefügt', en: '{count} file(s) not added' },
+  'upload.errors.single':    { de: '{filename} wurde nicht hinzugefügt', en: '{filename} was not added' },
+  'upload.errors.invalidType':    { de: 'falsches Format', en: 'wrong format' },
+  'upload.errors.fileTooLarge':   { de: 'größer als {maxSize}', en: 'larger than {maxSize}' },
+  'upload.errors.totalSizeExceeded': { de: 'Gesamtgröße über {maxTotalSize}', en: 'Total size over {maxTotalSize}' },
 
   // Merge options
   'merge.title':             { de: 'Merge-Optionen', en: 'Merge options' },
@@ -49,12 +55,16 @@ export const translations: Record<string, { de: string; en: string }> = {
 
   // Action bar
   'action.merge':            { de: 'Zusammenführen', en: 'Merge' },
+  'action.mergeSelected':    { de: 'Zusammenführen ({selectedCount} ausgewählt)', en: 'Merge selected ({selectedCount})' },
+  'action.mergeAll':         { de: 'Alle zusammenführen ({totalCount})', en: 'Merge all ({totalCount})' },
+  'action.mergeSelection':   { de: 'Auswahl zusammenführen ({n})', en: 'Merge selection ({n})' },
   'action.mergeAgain':        { de: 'Neu mergen', en: 'Merge again' },
   'action.uploadProgress':   { de: 'Hochladen', en: 'Upload' },
   'action.processing':       { de: 'Verarbeite…', en: 'Processing…' },
   'action.queue':            { de: 'Warteschlange (Pos. {n})…', en: 'Queue (pos. {n})…' },
   'action.mergeComplete':    { de: 'Merge abgeschlossen', en: 'Merge complete' },
   'action.mergeSuccessMessage': { de: 'Merge abgeschlossen – {filename} ist bereit zum Herunterladen.', en: 'Merge complete – {filename} is ready to download.' },
+  'action.mergeSuccessDownloading': { de: 'Merge abgeschlossen – {filename} wird heruntergeladen.', en: 'Merge complete – {filename} is being downloaded.' },
   'action.mergeAgainShort':   { de: 'Nochmal mergen', en: 'Merge again' },
   'action.closeResult':      { de: 'Ergebnis schließen', en: 'Close result' },
   'action.download':         { de: 'Herunterladen', en: 'Download' },
@@ -91,6 +101,11 @@ export const translations: Record<string, { de: string; en: string }> = {
   'history.delete':         { de: 'Löschen', en: 'Delete' },
 
   // File list
+  'files.totalAvailable':    { de: '{fileCount} Dateien und {sheetCount} Sheets vorhanden', en: '{fileCount} files and {sheetCount} sheets in list' },
+  'files.summaryShort':      { de: '{fileCount} Dateien · {sheetCount} Sheets', en: '{fileCount} files · {sheetCount} sheets' },
+  'files.selectedCountBadge': { de: '{n} ausgewählt', en: '{n} selected' },
+  'files.selectedForMerge':   { de: '{fileCount} Dateien · {sheetCount} Sheets ausgewählt', en: '{fileCount} files · {sheetCount} sheets selected' },
+  'files.selectionLabel':     { de: 'Auswahl', en: 'Selection' },
   'files.selectedLabel':     { de: 'ausgewählt', en: 'selected' },
   'files.remove':            { de: 'Entfernen', en: 'Remove' },
   'files.removeN':           { de: '{n} entfernen', en: 'Remove {n}' },
@@ -114,8 +129,13 @@ export const translations: Record<string, { de: string; en: string }> = {
   'files.historyLabel':      { de: 'Verlauf', en: 'History' },
   'duplicates.alreadyPresent': { de: 'Dateien bereits vorhanden – übersprungen', en: 'Files already present – skipped' },
   'duplicates.showAll':       { de: 'Alle anzeigen', en: 'Show all' },
-  'duplicates.collapse':      { de: 'Einklappen', en: 'Collapse' },
+  'duplicates.collapse':      { de: 'Ausblenden', en: 'Collapse' },
+  'duplicates.expand':        { de: 'Einblenden', en: 'Expand' },
   'duplicates.replaceExisting': { de: 'Vorhandene ersetzen', en: 'Replace existing' },
+  'duplicates.replaceSelected': { de: 'Ausgewählte ersetzen', en: 'Replace selected' },
+  'duplicates.replaceAll':      { de: 'Alle ersetzen', en: 'Replace all' },
+  'duplicates.replaceNone':     { de: 'Keine ersetzen', en: 'Replace none' },
+  'duplicates.replacePrompt':   { de: 'Bereits vorhanden – ersetzen?', en: 'Already present – replace?' },
   'duplicates.dismiss':       { de: 'Hinweis schließen', en: 'Dismiss' },
   'duplicates.skippedOne':   { de: 'Datei wurde als Duplikat übersprungen.', en: 'file was skipped as duplicate.' },
   'duplicates.skippedMany':  { de: 'Dateien wurden als Duplikat übersprungen.', en: 'files were skipped as duplicates.' },

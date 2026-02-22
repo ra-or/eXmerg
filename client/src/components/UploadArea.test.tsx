@@ -3,9 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { UploadArea } from './UploadArea';
 
 describe('UploadArea', () => {
-  it('rendert Hinweistext (Dateien hierher ziehen oder Drag files here)', () => {
+  it('rendert Hinweistext (Dateien hier ablegen. oder Drop files… und Unterstützt/Supports)', () => {
     render(<UploadArea />);
-    expect(screen.getByText(/Dateien hierher ziehen|Drag files here/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dateien hier ablegen\.|Drop your files here/)).toBeInTheDocument();
+    expect(screen.getByText(/Unterstützt:.*xlsx|Supports:.*xlsx/i)).toBeInTheDocument();
   });
 
   it('zeigt den Durchsuchen-Link/Button (Dateiauswahl)', () => {

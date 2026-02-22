@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { FileSortOrder } from '../store/useStore';
 import { useStore, sortFileList } from '../store/useStore';
 import { fetchSheets } from '../api/client';
 import { getExtension } from 'shared';
 import { useT } from '../i18n';
+import { Portal } from './ui/Portal';
+import { SelectionSummaryBar } from './SelectionSummaryBar';
+import { Z_INDEX } from '../constants/zIndex';
 import {
   evaluateSheetSelection,
   type FileMeta,
@@ -41,17 +45,13 @@ export function FileList() {
   const files              = useStore((s) => s.files);
   const fileSortOrder      = useStore((s) => s.fileSortOrder);
   const sheetInfo          = useStore((s) => s.sheetInfo);
-  const skippedDuplicates      = useStore((s) => s.skippedDuplicates);
-  const skippedDuplicateNames  = useStore((s) => s.skippedDuplicateNames);
-  const skippedDuplicateFiles  = useStore((s) => s.skippedDuplicateFiles);
-  const replaceWithDuplicates  = useStore((s) => s.replaceWithSkippedDuplicates);
   const newlyAddedFileIds      = useStore((s) => s.newlyAddedFileIds);
   const clearNewlyAddedFileIds = useStore((s) => s.clearNewlyAddedFileIds);
   const removeFile         = useStore((s) => s.removeFile);
   const removeFiles        = useStore((s) => s.removeFiles);
   const reorderFiles       = useStore((s) => s.reorderFiles);
   const setSheetInfo       = useStore((s) => s.setSheetInfo);
-  const clearSkipped       = useStore((s) => s.clearSkippedDuplicates);
+  const setSelectedFileIds = useStore((s) => s.setSelectedFileIds);
   const uploadProgress     = useStore((s) => s.uploadProgress);
   const downloadUrl        = useStore((s) => s.downloadUrl);
   const mergeOptions       = useStore((s) => s.mergeOptions);
@@ -59,6 +59,8 @@ export function FileList() {
   const setFileSortOrder   = useStore((s) => s.setFileSortOrder);
 
   const sortedFiles = useMemo(() => sortFileList(files, fileSortOrder), [files, fileSortOrder]);
+  const selectedFileIds = useStore((s) => s.selectedFileIds);
+  const selectedIds = useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
   const isUploadOrder = fileSortOrder === 'uploadOrder';
 
   // Live-Vorschau: wie viele Sheets nach Modus/Filter übrig bleiben (kein Laden, keine API)
@@ -98,11 +100,21 @@ export function FileList() {
       (mergeOptions.sheetNameFilter?.values?.length ?? 0) > 0,
     [mergeOptions.sheetSelectionMode, mergeOptions.sheetNameFilter],
   );
+  const totalSheetsInList = useMemo(
+    () => filesMeta.reduce((n, f) => n + f.sheets.length, 0),
+    [filesMeta],
+  );
+  const selectedSheetCount = useMemo(
+    () =>
+      selectionPreview.files
+        .filter((f) => selectedIds.has(f.fileId))
+        .reduce((s, f) => s + (filterActive ? f.matchedSheets : f.totalSheets), 0),
+    [selectionPreview.files, selectedIds, filterActive],
+  );
 
   const dragSrc = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [openSheets, setOpenSheets] = useState<Record<string, boolean>>({});
-  const [duplicateExpanded, setDuplicateExpanded] = useState(false);
 
   // Grünes Aufblitzen nach kurzer Zeit zurücksetzen
   useEffect(() => {
@@ -111,34 +123,31 @@ export function FileList() {
     return () => clearTimeout(t);
   }, [newlyAddedFileIds, clearNewlyAddedFileIds]);
 
-  // ── Mehrfachauswahl ────────────────────────────────────────────────────────
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // ── Mehrfachauswahl (sync mit Store für Merge-Scope) ────────────────────────
   const anySelected  = selectedIds.size > 0;
   const allSelected  = sortedFiles.length > 0 && selectedIds.size === sortedFiles.length;
 
-  const toggleSelect = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedFileIds(Array.from(next));
+  };
 
-  const toggleSelectAll = () =>
-    setSelectedIds(allSelected ? new Set() : new Set(sortedFiles.map((f) => f.id)));
+  const toggleSelectAll = () => {
+    setSelectedFileIds(allSelected ? [] : sortedFiles.map((f) => f.id));
+  };
 
   const deleteSelected = () => {
     removeFiles([...selectedIds]);
-    setSelectedIds(new Set());
+    setSelectedFileIds([]);
   };
 
   // Auswahl aufräumen wenn Dateien extern entfernt wurden
   useEffect(() => {
     const fileIds = new Set(files.map((f) => f.id));
-    setSelectedIds((prev) => {
-      const cleaned = new Set([...prev].filter((id) => fileIds.has(id)));
-      return cleaned.size === prev.size ? prev : cleaned;
-    });
-  }, [files]);
+    const cleaned = selectedFileIds.filter((id) => fileIds.has(id));
+    if (cleaned.length !== selectedFileIds.length) setSelectedFileIds(cleaned);
+  }, [files, selectedFileIds, setSelectedFileIds]);
 
   const isUploading  = uploadProgress !== null && uploadProgress !== 'processing';
   const isProcessing = uploadProgress === 'processing';
@@ -146,8 +155,26 @@ export function FileList() {
   const uploadPct    = typeof uploadProgress === 'number' ? uploadProgress : 0;
   const busy         = isUploading || isProcessing;
 
-  // Hover-Vorschau
+  // Hover-Vorschau (Position für Portal – verhindert Clipping durch Scroll-Container)
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+  const handleRowMouseEnter = (id: string, el: HTMLElement) => {
+    setHoveredId(id);
+    setHoveredRect(el.getBoundingClientRect());
+  };
+  const handleRowMouseLeave = () => {
+    setHoveredId(null);
+    setHoveredRect(null);
+  };
+
+  // Virtualisierung für lange Listen (100+ Dateien)
+  const listParentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: sortedFiles.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => 58,
+    overscan: 5,
+  });
 
   // ── Sheet-Info automatisch laden ──────────────────────────────────────────
   useEffect(() => {
@@ -223,102 +250,32 @@ export function FileList() {
   return (
     <div className="space-y-2">
 
-      {/* ── Merge-Reihenfolge ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-1">
-        <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{t('files.sortOrder')}</span>
-        <select
-          value={fileSortOrder}
-          onChange={(e) => setFileSortOrder(e.target.value as FileSortOrder)}
-          className="text-xs rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-700 text-zinc-800 dark:text-zinc-200 px-2 py-1 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
-          ))}
-        </select>
-        {!isUploadOrder && (
-          <span className="text-xs text-zinc-400 dark:text-zinc-500" title={t('files.sort.dragHint')}>
-            {t('files.sort.dragHint')}
-          </span>
-        )}
-      </div>
-
-      {/* ── Live-Vorschau: Sheets ausgewählt (sticky beim Scrollen) ──────── */}
-      {selectionPreview.totalSheets > 0 && (
-        <div
-          className="sticky top-0 z-10 -mx-1 px-1 pt-0.5 pb-1.5
-            bg-zinc-50/95 dark:bg-surface-800/95 backdrop-blur-sm
-            border-b border-zinc-200 dark:border-surface-600 shadow-[0_1px_0_0_rgba(0,0,0,0.04)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.04)]"
-        >
-          <p
-            className={[
-              'text-xs px-0.5 transition-colors duration-150 flex items-center gap-1.5',
-              filterActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-zinc-500 dark:text-zinc-400',
-            ].join(' ')}
+      {/* ── Summary-Bar + Merge-Reihenfolge (eine Zeile, auf kleinen Screens Wrap) ─ */}
+      <div className="flex flex-wrap items-center gap-3 px-1">
+        <SelectionSummaryBar
+          fileCount={files.length}
+          sheetCount={totalSheetsInList}
+          selectedFileCount={selectedIds.size}
+          selectedSheetCount={selectedSheetCount}
+        />
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{t('files.sortOrder')}</span>
+          <select
+            value={fileSortOrder}
+            onChange={(e) => setFileSortOrder(e.target.value as FileSortOrder)}
+            className="text-xs rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-700 text-zinc-800 dark:text-zinc-200 px-2 py-1 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
           >
-            {filterActive && (
-              <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-emerald-500/20 dark:bg-emerald-400/20 flex items-center justify-center" title={t('merge.sheetFilter')}>
-                <svg className="w-2 h-2 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-              </span>
-            )}
-            {t('files.sheetsSelected', {
-              matched: selectionPreview.matchedSheets,
-              total: selectionPreview.totalSheets,
-            })}
-          </p>
-        </div>
-      )}
-
-      {/* ── Dateien bereits vorhanden – übersprungen ─────────────────────── */}
-      {skippedDuplicates > 0 && (
-        <div className="rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-400 animate-slide-up overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2">
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-            <span className="flex-1 font-medium min-w-0 truncate">
-              {t('duplicates.alreadyPresent')} ({skippedDuplicates})
-              {skippedDuplicateNames[0] && (
-                <span className="text-amber-300/95 font-normal"> · {skippedDuplicateNames[0]}</span>
-              )}
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+            ))}
+          </select>
+          {!isUploadOrder && (
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline" title={t('files.sort.dragHint')}>
+              {t('files.sort.dragHint')}
             </span>
-            <button
-              type="button"
-              onClick={() => setDuplicateExpanded((e) => !e)}
-              className="shrink-0 px-2 py-0.5 rounded hover:bg-amber-500/20 text-amber-300"
-              title={duplicateExpanded ? t('duplicates.collapse') : t('duplicates.showAll')}
-            >
-              {duplicateExpanded ? t('duplicates.collapse') : t('duplicates.showAll')}
-              <svg className={['inline-block w-3.5 h-3.5 ml-0.5 align-middle transition-transform', duplicateExpanded ? 'rotate-180' : ''].join(' ')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {skippedDuplicateFiles.length > 0 && (
-              <button
-                type="button"
-                onClick={() => { replaceWithDuplicates(); setDuplicateExpanded(false); }}
-                className="shrink-0 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-medium"
-                title={t('duplicates.replaceExisting')}
-              >
-                {t('duplicates.replaceExisting')}
-              </button>
-            )}
-            <button type="button" onClick={clearSkipped} className="shrink-0 p-0.5 rounded hover:bg-amber-500/20 text-amber-200" title={t('duplicates.dismiss')}>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          {duplicateExpanded && skippedDuplicateNames.length > 0 && (
-            <div className="px-3 pb-3 pt-0 border-t border-amber-500/20">
-              <p className="text-amber-300/90 mt-1.5 break-all">
-                {skippedDuplicateNames.join(', ')}
-              </p>
-            </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* ── Bulk-Aktionsleiste (nur bei Auswahl) ─────────────────────────── */}
       {anySelected && !busy && (
@@ -343,8 +300,7 @@ export function FileList() {
           </button>
 
           <span className="text-xs text-zinc-500 dark:text-zinc-400 flex-1">
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">{selectedIds.size}</span>
-            {' '}{selectedIds.size === 1 ? t('history.file') : t('history.files')} {t('files.selectedLabel')}
+            {t('files.selectionLabel')}
           </span>
 
           <button
@@ -362,7 +318,7 @@ export function FileList() {
 
           <button
             type="button"
-            onClick={() => setSelectedIds(new Set())}
+            onClick={() => setSelectedFileIds([])}
             className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors shrink-0"
             title={t('files.clearSelection')}
           >
@@ -373,32 +329,48 @@ export function FileList() {
         </div>
       )}
 
-      {/* ── Datei-Liste ──────────────────────────────────────────────────── */}
-      <ul className="space-y-1.5 animate-fade-in">
-        {sortedFiles.map((item, index) => {
-          const ext           = getExtension(item.filename);
-          const color         = EXT_COLORS[ext] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/20';
-          const info          = sheetInfo[item.id];
-          const preview       = info?.previewRows;
-          const isHovered     = hoveredId === item.id;
-          const hasMultiSheets = (info?.sheets.length ?? 0) > 1;
-          const sheetsOpen    = openSheets[item.id] ?? false;
-          const isSelected    = selectedIds.has(item.id);
-          const filePreview   = selectionPreview.files.find((f) => f.fileId === item.id);
-          const noSheetsMatch = filePreview ? filePreview.totalSheets > 0 && filePreview.matchedSheets === 0 : false;
+      {/* ── Datei-Liste (virtualisiert) ───────────────────────────────────── */}
+      <div
+        ref={listParentRef}
+        className="min-h-[200px] max-h-[60vh] overflow-auto rounded-lg border border-zinc-200 dark:border-surface-600"
+      >
+        <div
+          style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
+          className="w-full"
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const index = virtualRow.index;
+            const item = sortedFiles[index]!;
+            const ext           = getExtension(item.filename);
+            const color         = EXT_COLORS[ext] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/20';
+            const info          = sheetInfo[item.id];
+            const hasMultiSheets = (info?.sheets.length ?? 0) > 1;
+            const sheetsOpen    = openSheets[item.id] ?? false;
+            const isSelected    = selectedIds.has(item.id);
+            const filePreview   = selectionPreview.files.find((f) => f.fileId === item.id);
+            const noSheetsMatch = filePreview ? filePreview.totalSheets > 0 && filePreview.matchedSheets === 0 : false;
 
-          return (
-            <li key={item.id}>
-              {/* ── Haupt-Zeile ───────────────────────────────────────── */}
+            return (
               <div
-                draggable={!busy && !anySelected && isUploadOrder}
-                onDragStart={!busy && !anySelected && isUploadOrder ? handleDragStart(index) : undefined}
-                onDragOver={!busy && !anySelected && isUploadOrder ? handleDragOver(index) : undefined}
-                onDrop={!busy && !anySelected && isUploadOrder ? handleDrop(index) : undefined}
-                onDragEnd={!busy && !anySelected && isUploadOrder ? handleDragEnd : undefined}
-                onMouseEnter={() => setHoveredId(item.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                className={[
+                key={item.id}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                  paddingBottom: 6,
+                }}
+              >
+                <div
+                  draggable={!busy && !anySelected && isUploadOrder}
+                  onDragStart={!busy && !anySelected && isUploadOrder ? handleDragStart(index) : undefined}
+                  onDragOver={!busy && !anySelected && isUploadOrder ? handleDragOver(index) : undefined}
+                  onDrop={!busy && !anySelected && isUploadOrder ? handleDrop(index) : undefined}
+                  onDragEnd={!busy && !anySelected && isUploadOrder ? handleDragEnd : undefined}
+                  onMouseEnter={(e) => handleRowMouseEnter(item.id, e.currentTarget)}
+                  onMouseLeave={handleRowMouseLeave}
+                  className={[
                   'relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all group overflow-visible',
                   newlyAddedFileIds.includes(item.id) && 'file-added-flash border-emerald-500/30',
                   noSheetsMatch && 'opacity-50',
@@ -412,7 +384,7 @@ export function FileList() {
                 {/* Fortschrittsbalken */}
                 {isUploading && (
                   <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-surface-600">
-                    <div className="h-full bg-emerald-500 transition-all duration-200 ease-out" style={{ width: `${uploadPct}%` }} />
+                    <div className="h-full bg-emerald-500 transition-all duration-200 ease-out" style={{ width: `${Math.min(100, Math.round(uploadPct))}%` }} />
                   </div>
                 )}
                 {isProcessing && (
@@ -467,38 +439,9 @@ export function FileList() {
                   <span className={`badge border ${color} shrink-0`}>{ext.slice(1)}</span>
                 )}
 
-                {/* Dateiname + Hover-Vorschau */}
-                <div className="flex-1 min-w-0 relative">
+                {/* Dateiname (Vorschau wird per Portal über der Liste gerendert) */}
+                <div className="flex-1 min-w-0">
                   <span className="block truncate text-sm text-zinc-800 dark:text-zinc-200">{item.filename}</span>
-
-                  {/* Tooltip: Vorschau-Tabelle (bis zu 6 Zeilen) */}
-                  {isHovered && preview && preview.length > 0 && (
-                    <div className="absolute left-0 top-full mt-1 z-50 min-w-[300px] max-w-[520px] p-2 rounded-lg bg-white dark:bg-surface-900 border border-zinc-300 dark:border-surface-500 shadow-xl animate-fade-in pointer-events-none">
-                      <p className="text-xs text-zinc-600 mb-1.5">{preview.length === 1 ? t('files.previewRow', { n: preview.length }) : t('files.previewRows', { n: preview.length })}</p>
-                      <div className="overflow-x-auto">
-                        <table className="text-xs border-collapse">
-                          <tbody>
-                            {preview.map((row, ri) => (
-                              <tr key={ri} className={ri === 0 ? 'bg-zinc-100 dark:bg-surface-800' : ri % 2 === 0 ? 'bg-zinc-50 dark:bg-surface-800/80' : ''}>
-                                {row.map((cell, ci) => (
-                                  <td
-                                    key={ci}
-                                    className={[
-                                      'px-1.5 py-0.5 border border-zinc-200 dark:border-surface-700 max-w-[90px] truncate whitespace-nowrap',
-                                      ri === 0 ? 'font-medium text-zinc-700 dark:text-zinc-300' : 'text-zinc-600 dark:text-zinc-500',
-                                    ].join(' ')}
-                                    title={cell}
-                                  >
-                                    {cell || <span className="text-zinc-400 dark:text-zinc-700">–</span>}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Badge: Sheets-Vorschau (immer anzeigen wenn Datei Sheets hat, Farbe: grau / blau / grün) */}
@@ -543,7 +486,7 @@ export function FileList() {
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   </span>
                 ) : isUploading ? (
-                  <span className="shrink-0 text-xs font-mono text-emerald-400 w-8 text-right tabular-nums">{uploadPct}%</span>
+                  <span className="shrink-0 text-xs font-mono text-emerald-400 w-8 text-right tabular-nums">{Math.round(uploadPct)}%</span>
                 ) : (
                   <span className="shrink-0 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600">
                     {item.lastModified ? (
@@ -603,10 +546,56 @@ export function FileList() {
                   })}
                 </div>
               )}
-            </li>
+              </div>
           );
-        })}
-      </ul>
+          })}
+        </div>
+      </div>
+
+      {/* Hover-Vorschau per Portal über der Liste (kein Clipping durch overflow) */}
+      {hoveredId && hoveredRect && (() => {
+        const preview = sheetInfo[hoveredId]?.previewRows;
+        if (!preview || preview.length === 0) return null;
+        return (
+          <Portal>
+            <div
+              className="min-w-[300px] max-w-[520px] p-3 rounded-xl border border-slate-700/60 bg-slate-900/95 dark:bg-surface-900/95 backdrop-blur shadow-2xl pointer-events-none animate-fade-in"
+              style={{
+                position: 'fixed',
+                left: hoveredRect.left,
+                top: hoveredRect.bottom + 6,
+                zIndex: Z_INDEX.OVERLAY,
+              }}
+            >
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5">
+                {preview.length === 1 ? t('files.previewRow', { n: preview.length }) : t('files.previewRows', { n: preview.length })}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="text-xs border-collapse">
+                  <tbody>
+                    {preview.map((row, ri) => (
+                      <tr key={ri} className={ri === 0 ? 'bg-slate-800/80 dark:bg-surface-800' : ri % 2 === 0 ? 'bg-slate-800/50 dark:bg-surface-800/80' : ''}>
+                        {row.map((cell, ci) => (
+                          <td
+                            key={ci}
+                            className={[
+                              'px-1.5 py-0.5 border border-slate-700/50 dark:border-surface-700 max-w-[90px] truncate whitespace-nowrap',
+                              ri === 0 ? 'font-medium text-zinc-300 dark:text-zinc-300' : 'text-zinc-400 dark:text-zinc-500',
+                            ].join(' ')}
+                            title={cell}
+                          >
+                            {cell || <span className="text-zinc-500 dark:text-zinc-600">–</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Portal>
+        );
+      })()}
     </div>
   );
 }

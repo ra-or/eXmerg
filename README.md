@@ -210,4 +210,3 @@ docker compose up -d
 ## Weitere Hinweise
 
 - **Worker:** Große Merges laufen in einem separaten Worker-Prozess (speicherbewusst).
-- **ODG:** Zeichnungen (`.odg`) können in einer eigenen Pipeline zusammengeführt werden (siehe Architektur).

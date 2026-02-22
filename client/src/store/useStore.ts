@@ -58,6 +58,23 @@ function getSavedFileSortOrder(): FileSortOrder {
   return 'uploadOrder';
 }
 
+/** Grund, warum eine Datei beim Upload abgelehnt wurde. */
+export type UploadErrorReason = 'invalidType' | 'fileTooLarge' | 'totalSizeExceeded';
+
+/** Abgelehnte Datei mit granularer Begründung. */
+export interface RejectedFile {
+  name: string;
+  reasons: UploadErrorReason[];
+}
+
+/** Duplikat beim Upload: gleicher Dateiname bereits in der Liste. */
+export interface DuplicateFile {
+  name: string;
+  existingId: string;
+  newFile: File;
+  replace: boolean;
+}
+
 export interface FileItem {
   /** Lokale Datei (undefined für History-Einträge). */
   file?: File;
@@ -182,12 +199,8 @@ interface AppState {
   files: FileItem[];
   /** Sheet-Infos pro Datei-ID */
   sheetInfo: Record<string, FileSheetInfo>;
-  /** Anzahl beim letzten addFiles-Aufruf übersprungener Duplikate */
-  skippedDuplicates: number;
-  /** Dateinamen der übersprungenen Duplikate (für genaue Fehlermeldung) */
-  skippedDuplicateNames: string[];
-  /** Übersprungene Duplikate als File-Objekte (für „Vorhandene ersetzen“) */
-  skippedDuplicateFiles: File[];
+  /** Beim Upload erkannte Duplikate (gleicher Dateiname) – granulare Ersetzung pro Datei. */
+  duplicateFiles: DuplicateFile[];
   mergeOptions: MergeOptions;
   /** Ausgabe-Format: xlsx (Standard) oder ods */
   outputFormat: 'xlsx' | 'ods';
@@ -206,6 +219,10 @@ interface AppState {
   fileSortOrder: FileSortOrder;
   /** IDs gerade hinzugefügter Dateien (für grünes Aufblitzen), wird nach kurzer Zeit geleert. */
   newlyAddedFileIds: string[];
+  /** Beim letzten Upload abgelehnte Dateien (für Banner-Anzeige). */
+  rejectedFiles: RejectedFile[];
+  /** Ausgewählte Datei-IDs (für Merge-Scope und Löschen). Leer = alle Dateien. */
+  selectedFileIds: string[];
 
   /** Zähler – erhöht sich nach jedem erfolgreichen Merge (triggert History-Refresh). */
   historyVersion: number;
@@ -220,9 +237,11 @@ interface AppState {
   removeFiles: (ids: string[]) => void;
   reorderFiles: (fromIndex: number, toIndex: number) => void;
   setSheetInfo: (fileId: string, info: Partial<FileSheetInfo>) => void;
-  clearSkippedDuplicates: () => void;
-  /** Vorhandene Dateien mit den übersprungenen Duplikaten ersetzen. */
-  replaceWithSkippedDuplicates: () => void;
+  setDuplicateFiles: (list: DuplicateFile[]) => void;
+  toggleDuplicateReplace: (name: string) => void;
+  replaceSelectedDuplicates: () => void;
+  replaceAllDuplicates: () => void;
+  clearDuplicates: () => void;
   setMergeOptions: (o: MergeOptions) => void;
   setOutputFormat: (f: 'xlsx' | 'ods') => void;
   setProcessing: (v: boolean) => void;
@@ -237,6 +256,9 @@ interface AppState {
   clearResult: () => void;
   reset: () => void;
   setLocale: (locale: Locale) => void;
+  setRejectedFiles: (list: RejectedFile[]) => void;
+  clearRejectedFiles: () => void;
+  setSelectedFileIds: (ids: string[]) => void;
 }
 
 const defaultMergeOptions: MergeOptions = {
@@ -248,9 +270,7 @@ export const useStore = create<AppState>((set) => ({
   locale: getSavedLocale(),
   files: [],
   sheetInfo: {},
-  skippedDuplicates: 0,
-  skippedDuplicateNames: [],
-  skippedDuplicateFiles: [],
+  duplicateFiles: [],
   mergeOptions: { ...defaultMergeOptions, mode: getSavedMode(), outputFormat: getSavedFormat() },
   outputFormat: getSavedFormat(),
   historyVersion: 0,
@@ -266,14 +286,24 @@ export const useStore = create<AppState>((set) => ({
   uploadProgress: null,
   fileSortOrder: getSavedFileSortOrder(),
   newlyAddedFileIds: [],
+  rejectedFiles: [],
+  selectedFileIds: [],
 
   addFiles: (newFiles) =>
     set((s) => {
-      const existingNames = new Set(s.files.map((f) => f.filename));
-      const unique = newFiles.filter((f) => !existingNames.has(f.name));
-      const duplicateFiles = newFiles.filter((f) => existingNames.has(f.name));
-      const duplicateNames = duplicateFiles.map((f) => f.name);
-      const skippedDuplicates = duplicateNames.length;
+      const existingByFilename = new Map(s.files.map((f) => [f.filename, f]));
+      const unique: File[] = [];
+      const duplicates: DuplicateFile[] = [];
+
+      for (let i = 0; i < newFiles.length; i++) {
+        const file = newFiles[i]!;
+        const existing = existingByFilename.get(file.name);
+        if (existing) {
+          duplicates.push({ name: file.name, existingId: existing.id, newFile: file, replace: false });
+        } else {
+          unique.push(file);
+        }
+      }
 
       const added = unique.map((file) => ({
         file,
@@ -286,7 +316,6 @@ export const useStore = create<AppState>((set) => ({
       const allFiles = [...s.files, ...added];
       const newlyAddedFileIds = added.map((i) => i.id);
 
-      // Sheet-Info-Einträge für neue Dateien anlegen (loading=true)
       const newSheetInfo = { ...s.sheetInfo };
       for (const item of added) {
         const ext = item.filename.split('.').pop()?.toLowerCase() ?? '';
@@ -299,7 +328,7 @@ export const useStore = create<AppState>((set) => ({
         ? s.outputFilename
         : generateOutputFilename(allFiles, s.outputFormat);
 
-      return { files: allFiles, sheetInfo: newSheetInfo, skippedDuplicates, skippedDuplicateNames: duplicateNames, skippedDuplicateFiles: duplicateFiles, newlyAddedFileIds, outputFilename };
+      return { files: allFiles, sheetInfo: newSheetInfo, duplicateFiles: duplicates, newlyAddedFileIds, outputFilename };
     }),
 
   bumpHistory: () => set((s) => ({ historyVersion: s.historyVersion + 1 })),
@@ -369,22 +398,28 @@ export const useStore = create<AppState>((set) => ({
       },
     })),
 
-  clearSkippedDuplicates: () => set({ skippedDuplicates: 0, skippedDuplicateNames: [], skippedDuplicateFiles: [] }),
+  setDuplicateFiles: (list) => set({ duplicateFiles: list }),
 
-  replaceWithSkippedDuplicates: () =>
+  toggleDuplicateReplace: (name) =>
+    set((s) => ({
+      duplicateFiles: s.duplicateFiles.map((d) =>
+        d.name === name ? { ...d, replace: !d.replace } : d
+      ),
+    })),
+
+  replaceSelectedDuplicates: () =>
     set((s) => {
-      if (s.skippedDuplicateFiles.length === 0) return s;
-      const namesToReplace = new Set(s.skippedDuplicateNames);
-      const remaining = s.files.filter((f) => !namesToReplace.has(f.filename));
+      const toReplace = s.duplicateFiles.filter((d) => d.replace);
+      if (toReplace.length === 0) return s;
+      const idsToRemove = new Set(toReplace.map((d) => d.existingId));
+      const remaining = s.files.filter((f) => !idsToRemove.has(f.id));
       const newSheetInfo = { ...s.sheetInfo };
-      for (const f of s.files) {
-        if (namesToReplace.has(f.filename)) delete newSheetInfo[f.id];
-      }
-      const added = s.skippedDuplicateFiles.map((file) => ({
-        file,
-        filename: file.name,
-        size: file.size,
-        lastModified: file.lastModified,
+      for (const id of idsToRemove) delete newSheetInfo[id];
+      const added = toReplace.map((d) => ({
+        file: d.newFile,
+        filename: d.newFile.name,
+        size: d.newFile.size,
+        lastModified: d.newFile.lastModified,
         id: Math.random().toString(36).slice(2),
         error: undefined as string | undefined,
       }));
@@ -399,13 +434,45 @@ export const useStore = create<AppState>((set) => ({
       return {
         files: allFiles,
         sheetInfo: newSheetInfo,
-        skippedDuplicates: 0,
-        skippedDuplicateNames: [],
-        skippedDuplicateFiles: [],
+        duplicateFiles: [],
         newlyAddedFileIds: added.map((i) => i.id),
         outputFilename,
       };
     }),
+
+  replaceAllDuplicates: () =>
+    set((s) => {
+      if (s.duplicateFiles.length === 0) return s;
+      const idsToRemove = new Set(s.duplicateFiles.map((d) => d.existingId));
+      const remaining = s.files.filter((f) => !idsToRemove.has(f.id));
+      const newSheetInfo = { ...s.sheetInfo };
+      for (const id of idsToRemove) delete newSheetInfo[id];
+      const added = s.duplicateFiles.map((d) => ({
+        file: d.newFile,
+        filename: d.newFile.name,
+        size: d.newFile.size,
+        lastModified: d.newFile.lastModified,
+        id: Math.random().toString(36).slice(2),
+        error: undefined as string | undefined,
+      }));
+      const allFiles = [...remaining, ...added];
+      for (const item of added) {
+        const ext = item.filename.split('.').pop()?.toLowerCase() ?? '';
+        if (['xlsx', 'xls', 'ods'].includes(ext)) {
+          newSheetInfo[item.id] = { sheets: [], loading: true, selected: [] };
+        }
+      }
+      const outputFilename = s.isCustomFilename ? s.outputFilename : generateOutputFilename(allFiles, s.outputFormat);
+      return {
+        files: allFiles,
+        sheetInfo: newSheetInfo,
+        duplicateFiles: [],
+        newlyAddedFileIds: added.map((i) => i.id),
+        outputFilename,
+      };
+    }),
+
+  clearDuplicates: () => set({ duplicateFiles: [] }),
 
 
   setMergeOptions: (o) => {
@@ -442,14 +509,18 @@ export const useStore = create<AppState>((set) => ({
 
   clearResult: () => set({ downloadUrl: null, downloadFilename: null, lastMergeHistoryMeta: null, mergeWarnings: [] }),
 
+  setRejectedFiles: (list) => set({ rejectedFiles: list }),
+  clearRejectedFiles: () => set({ rejectedFiles: [] }),
+  setSelectedFileIds: (ids) => set({ selectedFileIds: ids }),
+
   reset: () =>
     set((s) => ({
       files: [],
       sheetInfo: {},
-      skippedDuplicates: 0,
-      skippedDuplicateNames: [],
-      skippedDuplicateFiles: [],
+      duplicateFiles: [],
       newlyAddedFileIds: [],
+      rejectedFiles: [],
+      selectedFileIds: [],
       mergeOptions: { ...defaultMergeOptions, mode: getSavedMode(), outputFormat: s.outputFormat },
       outputFormat: s.outputFormat,
       isProcessing: false,

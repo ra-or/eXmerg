@@ -13,7 +13,7 @@ export function startTempCleanup(uploadDir: string, ttlSeconds: number): void {
     const cutoff = Date.now() - ttlSeconds * 1000;
     try {
       await cleanDir(uploadDir, cutoff);
-      // Unterordner (z. B. odg/)
+      // Unterordner (z. B. merge-output/)
       const entries = await fs.readdir(uploadDir, { withFileTypes: true });
       for (const e of entries) {
         if (e.isDirectory()) {
