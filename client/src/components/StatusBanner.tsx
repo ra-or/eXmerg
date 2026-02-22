@@ -57,6 +57,8 @@ export interface StatusBannerProps {
   itemCount?: number;
   /** Collapsed-Ansicht: nur Titel + Toggle. Expanded: Liste mit max-h-48 overflow-y-auto. */
   collapsible?: boolean;
+  /** Wenn true: children werden nicht in ein scrollbares max-h-48 div gepackt (z. B. für eigenes Layout mit fixen Buttons + scrollbarer Liste). */
+  noScrollWrapper?: boolean;
   onClose: () => void;
   /** Nach dieser Zeit (ms) Fade-Out, danach onClose. Nur bei variant="success". */
   fadeAfterMs?: number;
@@ -75,6 +77,7 @@ export function StatusBanner({
   children,
   itemCount,
   collapsible = false,
+  noScrollWrapper = false,
   onClose,
   fadeAfterMs,
   closable = true,
@@ -141,7 +144,11 @@ export function StatusBanner({
             )}
           </div>
           {showExpanded && (children != null ? (
-            <div className="mt-1.5 max-h-48 overflow-y-auto pr-2 space-y-1">{children}</div>
+            noScrollWrapper ? (
+              <div className="mt-1.5 pr-2">{children}</div>
+            ) : (
+              <div className="mt-1.5 max-h-48 overflow-y-auto pr-2 space-y-1">{children}</div>
+            )
           ) : items.length > 0 ? (
             <ul className="mt-1.5 space-y-1 list-none pl-0 max-h-48 overflow-y-auto pr-2">
               {items.map((item, i) => (

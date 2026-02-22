@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { FileSortOrder } from '../store/useStore';
 import { useStore, sortFileList } from '../store/useStore';
@@ -155,17 +155,51 @@ export function FileList() {
   const uploadPct    = typeof uploadProgress === 'number' ? uploadProgress : 0;
   const busy         = isUploading || isProcessing;
 
-  // Hover-Vorschau (Position für Portal – verhindert Clipping durch Scroll-Container)
+  // Hover-Vorschau (Portal, viewport-aware Position + kurze Verzögerung)
+  const PREVIEW_MAX_WIDTH = 520;
+  const PREVIEW_MAX_HEIGHT = 280;
+  const PREVIEW_MARGIN = 16;
+  const PREVIEW_DELAY_MS = 280;
+
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const previewDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleRowMouseEnter = (id: string, el: HTMLElement) => {
     setHoveredId(id);
     setHoveredRect(el.getBoundingClientRect());
+    setShowPreview(false);
+    previewDelayRef.current = setTimeout(() => setShowPreview(true), PREVIEW_DELAY_MS);
   };
   const handleRowMouseLeave = () => {
     setHoveredId(null);
     setHoveredRect(null);
+    setShowPreview(false);
+    if (previewDelayRef.current) {
+      clearTimeout(previewDelayRef.current);
+      previewDelayRef.current = null;
+    }
   };
+
+  const hidePreviewOnScroll = useCallback(() => {
+    setHoveredId(null);
+    setHoveredRect(null);
+    setShowPreview(false);
+    if (previewDelayRef.current) {
+      clearTimeout(previewDelayRef.current);
+      previewDelayRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (previewDelayRef.current) clearTimeout(previewDelayRef.current);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('scroll', hidePreviewOnScroll, { passive: true });
+    return () => window.removeEventListener('scroll', hidePreviewOnScroll);
+  }, [hidePreviewOnScroll]);
 
   // Virtualisierung für lange Listen (100+ Dateien)
   const listParentRef = useRef<HTMLDivElement>(null);
@@ -332,6 +366,7 @@ export function FileList() {
       {/* ── Datei-Liste (virtualisiert) ───────────────────────────────────── */}
       <div
         ref={listParentRef}
+        onScroll={hidePreviewOnScroll}
         className="min-h-[200px] max-h-[60vh] overflow-auto rounded-lg border border-zinc-200 dark:border-surface-600"
       >
         <div
@@ -552,25 +587,34 @@ export function FileList() {
         </div>
       </div>
 
-      {/* Hover-Vorschau per Portal über der Liste (kein Clipping durch overflow) */}
-      {hoveredId && hoveredRect && (() => {
+      {/* Hover-Vorschau: viewport-aware (überdeckt Liste nicht), erscheint nach kurzer Verzögerung */}
+      {showPreview && hoveredId && hoveredRect && (() => {
         const preview = sheetInfo[hoveredId]?.previewRows;
         if (!preview || preview.length === 0) return null;
+        const win = typeof window !== 'undefined' ? window : null;
+        const spaceBelow = win ? win.innerHeight - hoveredRect.bottom - PREVIEW_MARGIN : 400;
+        const showAbove = spaceBelow < PREVIEW_MAX_HEIGHT;
+        const left = win
+          ? Math.max(PREVIEW_MARGIN, Math.min(hoveredRect.left, win.innerWidth - PREVIEW_MAX_WIDTH - PREVIEW_MARGIN))
+          : hoveredRect.left;
+        const top = showAbove
+          ? Math.max(PREVIEW_MARGIN, hoveredRect.top - PREVIEW_MAX_HEIGHT - 8)
+          : hoveredRect.bottom + 6;
         return (
           <Portal>
             <div
-              className="min-w-[300px] max-w-[520px] p-3 rounded-xl border border-slate-700/60 bg-slate-900/95 dark:bg-surface-900/95 backdrop-blur shadow-2xl pointer-events-none animate-fade-in"
+              className="min-w-[300px] max-w-[520px] max-h-[280px] flex flex-col p-3 rounded-xl border border-slate-700/60 bg-slate-900/95 dark:bg-surface-900/95 backdrop-blur shadow-2xl pointer-events-none animate-fade-in"
               style={{
                 position: 'fixed',
-                left: hoveredRect.left,
-                top: hoveredRect.bottom + 6,
+                left,
+                top,
                 zIndex: Z_INDEX.OVERLAY,
               }}
             >
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5 shrink-0">
                 {preview.length === 1 ? t('files.previewRow', { n: preview.length }) : t('files.previewRows', { n: preview.length })}
               </p>
-              <div className="overflow-x-auto">
+              <div className="overflow-auto min-h-0 flex-1">
                 <table className="text-xs border-collapse">
                   <tbody>
                     {preview.map((row, ri) => (

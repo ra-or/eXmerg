@@ -1,106 +1,26 @@
-import { useCallback, useState } from 'react';
-import { useStore, type RejectedFile, type UploadErrorReason } from '../store/useStore';
-import { isAllowedFile, DEFAULT_FILE_LIMITS } from 'shared';
-import { HISTORY_DRAG_TYPE } from './DownloadHistory';
+import { DEFAULT_FILE_LIMITS } from 'shared';
 import { useT } from '../i18n';
 
 const MAX_SIZE = DEFAULT_FILE_LIMITS.maxFileSizeBytes;
 const MAX_FILES = DEFAULT_FILE_LIMITS.maxFilesPerRequest;
 const MAX_TOTAL_BYTES = DEFAULT_FILE_LIMITS.maxTotalSizeBytes;
 
-function buildRejectedList(
-  fileList: FileList,
-  fileCount: number,
-  currentTotalBytes: number,
-): { rejected: RejectedFile[]; toAdd: File[] } {
-  const remainingCount = Math.max(0, MAX_FILES - fileCount);
-  const remainingBytes = Math.max(0, MAX_TOTAL_BYTES - currentTotalBytes);
-  const rejected: RejectedFile[] = [];
-  const validCandidates: File[] = [];
-
-  for (let i = 0; i < fileList.length; i++) {
-    const f = fileList[i];
-    if (!f) continue;
-    const reasons: UploadErrorReason[] = [];
-    if (!isAllowedFile(f.name)) reasons.push('invalidType');
-    if (f.size > MAX_SIZE) reasons.push('fileTooLarge');
-    if (reasons.length > 0) {
-      rejected.push({ name: f.name, reasons });
-    } else {
-      validCandidates.push(f);
-    }
-  }
-
-  const toAdd: File[] = [];
-  let usedBytes = 0;
-  for (const f of validCandidates) {
-    if (toAdd.length >= remainingCount) {
-      rejected.push({ name: f.name, reasons: ['totalSizeExceeded'] });
-      continue;
-    }
-    if (usedBytes + f.size > remainingBytes) {
-      rejected.push({ name: f.name, reasons: ['totalSizeExceeded'] });
-      continue;
-    }
-    toAdd.push(f);
-    usedBytes += f.size;
-  }
-
-  return { rejected, toAdd };
+export interface UploadAreaProps {
+  /** Von useFileDrop (MergePage) – Validierung + Hinzufügen */
+  validateAndAdd: (fileList: FileList | null) => void;
+  /** Limit erreicht (keine weiteren Dateien) */
+  full: boolean;
+  /** Drag über der ganzen Seite aktiv → Box optisch hervorgehoben */
+  isDragOver: boolean;
+  /** Aktuelle Dateianzahl (für Anzeige) */
+  fileCount: number;
 }
 
-export function UploadArea() {
+export function UploadArea({ validateAndAdd, full, isDragOver, fileCount }: UploadAreaProps) {
   const t = useT();
-  const addFiles = useStore((s) => s.addFiles);
-  const setRejectedFiles = useStore((s) => s.setRejectedFiles);
-  const addHistoryFile = useStore((s) => s.addHistoryFile);
-  const filesInStore = useStore((s) => s.files);
-  const fileCount = filesInStore.length;
-  const currentTotalBytes = filesInStore.reduce((s, f) => s + (f.size ?? 0), 0);
-  const [isDragOver, setIsDragOver] = useState(false);
-
-  const validateAndAdd = useCallback(
-    (fileList: FileList | null) => {
-      if (!fileList?.length) return;
-      const { rejected, toAdd } = buildRejectedList(fileList, fileCount, currentTotalBytes);
-      setRejectedFiles(rejected);
-      if (toAdd.length) addFiles(toAdd);
-    },
-    [addFiles, setRejectedFiles, fileCount, currentTotalBytes]
-  );
-
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      // History-Eintrag als Quelle hinzufügen (Drag from DownloadHistory)
-      const historyData = e.dataTransfer.getData(HISTORY_DRAG_TYPE);
-      if (historyData) {
-        e.preventDefault();
-        setIsDragOver(false);
-        try {
-          addHistoryFile(JSON.parse(historyData));
-        } catch { /* ignore */ }
-        return;
-      }
-      e.preventDefault();
-      setIsDragOver(false);
-      validateAndAdd(e.dataTransfer.files);
-    },
-    [validateAndAdd]
-  );
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setIsDragOver(true);
-  }, []);
-  const onDragLeave = useCallback(() => setIsDragOver(false), []);
-
-  const full = fileCount >= MAX_FILES || currentTotalBytes >= MAX_TOTAL_BYTES;
 
   return (
     <div
-      onDrop={onDrop}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
       className={[
         'relative flex items-center gap-4 px-4 py-3 rounded-xl border transition-all duration-200',
         isDragOver

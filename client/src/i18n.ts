@@ -4,7 +4,7 @@ export type { Locale };
 
 export const translations: Record<string, { de: string; en: string }> = {
   // Header
-  'app.subtitle':            { de: 'Upload. Merge. Done.', en: 'Upload. Merge. Done.' },
+  'app.subtitle':            { de: 'excel & ods merge', en: 'excel & ods merge' },
 
   // Upload
   'upload.hint':             { de: 'Dateien hierher ziehen', en: 'Drag files here' },

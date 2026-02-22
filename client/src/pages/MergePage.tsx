@@ -10,6 +10,7 @@ import { LanguageToggle } from '../components/LanguageToggle';
 import { useT } from '../i18n';
 import { useStore, type RejectedFile, type UploadErrorReason } from '../store/useStore';
 import { Z_INDEX } from '../constants/zIndex';
+import { useFileDrop } from '../hooks/useFileDrop';
 import { DEFAULT_FILE_LIMITS } from 'shared';
 
 const MAX_SIZE_MB = Math.round(DEFAULT_FILE_LIMITS.maxFileSizeBytes / (1024 * 1024));
@@ -51,6 +52,8 @@ export function MergePage() {
   const t = useT();
   const rejectedFiles = useStore((s) => s.rejectedFiles);
   const clearRejectedFiles = useStore((s) => s.clearRejectedFiles);
+  const { onDrop, onDragOver, onDragLeave, isDragOver, validateAndAdd, full } = useFileDrop();
+  const fileCount = useStore((s) => s.files.length);
 
   const uploadErrorBanner =
     rejectedFiles.length > 0 ? (() => {
@@ -72,7 +75,26 @@ export function MergePage() {
     })() : null;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-surface-950 flex flex-col">
+    <div
+      className="min-h-screen bg-zinc-50 dark:bg-surface-950 flex flex-col relative"
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+    >
+      {/* ── Full-Page Drop-Overlay (wenn Dateien über die Seite gezogen werden) ─ */}
+      {isDragOver && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-emerald-500/10 dark:bg-emerald-500/15 border-4 border-dashed border-emerald-500/50 rounded-none pointer-events-none"
+          aria-hidden
+        >
+          <div className="flex flex-col items-center gap-2 px-6 py-4 rounded-2xl bg-white/90 dark:bg-surface-900/95 backdrop-blur-md border border-emerald-500/30 shadow-xl">
+            <svg className="w-12 h-12 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338-2.32 5.75 5.75 0 011.987 4.595A4.5 4.5 0 0117.25 19.5H6.75z" />
+            </svg>
+            <span className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">{t('upload.dropNow')}</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Sticky Top Header ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 border-b border-zinc-200 dark:border-surface-600 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md">
@@ -96,7 +118,7 @@ export function MergePage() {
       {/* ── Main: eine Spalte – pb-24 damit Inhalt nicht hinter Sticky-Bar verschwindet ─ */}
       <main className="flex-1 w-full px-4 md:px-6 pt-5 pb-24 max-w-5xl mx-auto flex flex-col gap-4">
         <div id="upload-area">
-          <UploadArea />
+          <UploadArea validateAndAdd={validateAndAdd} full={full} isDragOver={isDragOver} fileCount={fileCount} />
         </div>
         {uploadErrorBanner}
         <DuplicateFilesBanner />
@@ -105,12 +127,12 @@ export function MergePage() {
         <DownloadHistory />
       </main>
 
-      {/* ── Sticky Bottom Action Bar (Viewport, immer sichtbar) ───────────── */}
+      {/* ── Sticky Bottom Action Bar (gleiche Optik wie Header oben) ──────── */}
       <div
-        className="sticky bottom-0 w-full border-t border-zinc-200 dark:border-surface-800 bg-white/95 dark:bg-surface-950/80 backdrop-blur-md"
+        className="sticky bottom-0 z-20 w-full border-t border-zinc-200 dark:border-surface-600 bg-white/90 dark:bg-surface-900/90 backdrop-blur-md"
         style={{ zIndex: Z_INDEX.STICKY_FOOTER }}
       >
-        <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="max-w-5xl mx-auto px-4 md:px-6 py-3 lg:max-w-none">
           <ActionBar />
         </div>
       </div>

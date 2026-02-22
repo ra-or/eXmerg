@@ -496,9 +496,9 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
         </Portal>
       )}
 
-      {/* ── Haupt-Leiste ──────────────────────────────────────────────── */}
-      <div className="border-t border-zinc-200 dark:border-surface-600 bg-white/95 dark:bg-surface-900/95 backdrop-blur-md">
-        <div className="max-w-5xl mx-auto px-4 md:px-6 py-3">
+      {/* ── Haupt-Leiste (Hintergrund/Border kommt vom MergePage-Sticky-Wrapper) ─ */}
+      <div>
+        <div className="max-w-5xl mx-auto">
 
           {/* Mobile: 2-Zeilen-Layout */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
