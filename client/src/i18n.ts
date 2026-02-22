@@ -7,10 +7,11 @@ export const translations: Record<string, { de: string; en: string }> = {
   'app.subtitle':            { de: 'excel & ods merge', en: 'excel & ods merge' },
 
   // Upload
-  'upload.hint':             { de: 'Dateien hierher ziehen', en: 'Drag files here' },
-  'upload.hintEmpty':        { de: 'Dateien hier ablegen.', en: 'Drop your files here' },
+  'upload.title':            { de: 'Dateien hinzufügen', en: 'Add files' },
+  'upload.titleMore':        { de: 'Weitere Dateien hinzufügen', en: 'Add more files' },
+  'upload.subtitle':         { de: 'Per Drag & Drop auf die Seite – oder hier auswählen', en: 'Drag & drop onto the page – or select here' },
   'upload.supports':         { de: 'Unterstützt: .xlsx · .xls · .ods', en: 'Supports: .xlsx · .xls · .ods' },
-  'upload.dropNow':          { de: 'Loslassen zum Hinzufügen', en: 'Release to add' },
+  'upload.dropToAdd':        { de: 'Dateien ablegen zum Hochladen', en: 'Drop files to upload' },
   'upload.maxReached':       { de: 'Maximale Dateianzahl erreicht', en: 'Maximum number of files reached' },
   'upload.limits':           { de: 'max. {n} Dateien · {mb} MB pro Datei · {totalMb} MB gesamt', en: 'max. {n} files · {mb} MB per file · {totalMb} MB total' },
   'upload.browse':           { de: 'Durchsuchen', en: 'Browse' },

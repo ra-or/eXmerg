@@ -91,7 +91,7 @@ export function MergePage() {
             <svg className="w-12 h-12 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338-2.32 5.75 5.75 0 011.987 4.595A4.5 4.5 0 0117.25 19.5H6.75z" />
             </svg>
-            <span className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">{t('upload.dropNow')}</span>
+            <span className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">{t('upload.dropToAdd')}</span>
           </div>
         </div>
       )}
@@ -118,7 +118,7 @@ export function MergePage() {
       {/* ── Main: eine Spalte – pb-24 damit Inhalt nicht hinter Sticky-Bar verschwindet ─ */}
       <main className="flex-1 w-full px-4 md:px-6 pt-5 pb-24 max-w-5xl mx-auto flex flex-col gap-4">
         <div id="upload-area">
-          <UploadArea validateAndAdd={validateAndAdd} full={full} isDragOver={isDragOver} fileCount={fileCount} />
+          <UploadArea validateAndAdd={validateAndAdd} full={full} fileCount={fileCount} />
         </div>
         {uploadErrorBanner}
         <DuplicateFilesBanner />

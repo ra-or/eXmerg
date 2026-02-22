@@ -10,33 +10,30 @@ export interface UploadAreaProps {
   validateAndAdd: (fileList: FileList | null) => void;
   /** Limit erreicht (keine weiteren Dateien) */
   full: boolean;
-  /** Drag über der ganzen Seite aktiv → Box optisch hervorgehoben */
-  isDragOver: boolean;
   /** Aktuelle Dateianzahl (für Anzeige) */
   fileCount: number;
 }
 
-export function UploadArea({ validateAndAdd, full, isDragOver, fileCount }: UploadAreaProps) {
+export function UploadArea({ validateAndAdd, full, fileCount }: UploadAreaProps) {
   const t = useT();
+  const title = fileCount === 0 ? t('upload.title') : t('upload.titleMore');
 
   return (
     <div
       className={[
-        'relative flex items-center gap-4 px-4 py-3 rounded-xl border transition-all duration-200',
-        isDragOver
-          ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/20'
-          : full
-          ? 'border-surface-500 bg-surface-800 opacity-60 cursor-not-allowed'
-          : 'border-dashed border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 hover:border-zinc-500 dark:hover:border-zinc-500 cursor-pointer',
+        'relative flex items-center gap-4 px-4 py-3 rounded-lg border transition-colors',
+        full
+          ? 'border-zinc-300 dark:border-surface-600 bg-zinc-100 dark:bg-surface-800 opacity-60 cursor-not-allowed'
+          : 'border-zinc-200 dark:border-surface-600 bg-zinc-100 dark:bg-surface-800',
       ].join(' ')}
     >
       {/* Icon */}
-      <div className={[
-        'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors',
-        isDragOver
-          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-          : 'border-zinc-400 dark:border-surface-500 bg-zinc-200 dark:bg-surface-700 text-zinc-500',
-      ].join(' ')}>
+      <div
+        className={[
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
+          'border-zinc-300 dark:border-surface-500 bg-zinc-200 dark:bg-surface-700 text-zinc-500 dark:text-zinc-400',
+        ].join(' ')}
+      >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338-2.32 5.75 5.75 0 011.987 4.595A4.5 4.5 0 0117.25 19.5H6.75z" />
         </svg>
@@ -44,19 +41,20 @@ export function UploadArea({ validateAndAdd, full, isDragOver, fileCount }: Uplo
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className={['text-sm font-medium', isDragOver ? 'text-emerald-600 dark:text-emerald-300' : 'text-zinc-700 dark:text-zinc-300'].join(' ')}>
-          {isDragOver ? t('upload.dropNow') : full ? t('upload.maxReached') : fileCount === 0 ? t('upload.hintEmpty') : t('upload.hint')}
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {title}
         </p>
-        {!isDragOver && (
-          <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
-            {fileCount === 0 ? t('upload.supports') : t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}
-          </p>
-        )}
+        <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
+          {t('upload.subtitle')}
+        </p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
+          {fileCount === 0 ? t('upload.supports') : t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}
+        </p>
       </div>
 
       {/* Zähler */}
       {fileCount > 0 && (
-        <span className="shrink-0 text-xs font-mono text-zinc-500 bg-zinc-200 dark:bg-surface-700 border border-zinc-400 dark:border-surface-500 px-2 py-1 rounded">
+        <span className="shrink-0 text-xs font-mono text-zinc-500 dark:text-zinc-400 bg-zinc-200 dark:bg-surface-700 border border-zinc-300 dark:border-surface-600 px-2 py-1 rounded">
           {fileCount}/{MAX_FILES}
         </span>
       )}

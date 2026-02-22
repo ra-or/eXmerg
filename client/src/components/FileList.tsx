@@ -155,6 +155,13 @@ export function FileList() {
   const uploadPct    = typeof uploadProgress === 'number' ? uploadProgress : 0;
   const busy         = isUploading || isProcessing;
 
+  /** Während eines Merges: nur diese Dateien zeigen Fortschritt (ausgewählte oder alle). */
+  const mergingIds = useMemo(() => {
+    if (!busy) return new Set<string>();
+    if (selectedIds.size > 0) return new Set(selectedIds);
+    return new Set(sortedFiles.map((f) => f.id));
+  }, [busy, selectedIds, sortedFiles]);
+
   // Hover-Vorschau (Portal, viewport-aware Position + kurze Verzögerung)
   const PREVIEW_MAX_WIDTH = 520;
   const PREVIEW_MAX_HEIGHT = 280;
@@ -382,6 +389,7 @@ export function FileList() {
             const hasMultiSheets = (info?.sheets.length ?? 0) > 1;
             const sheetsOpen    = openSheets[item.id] ?? false;
             const isSelected    = selectedIds.has(item.id);
+            const isPartOfMerge = mergingIds.has(item.id);
             const filePreview   = selectionPreview.files.find((f) => f.fileId === item.id);
             const noSheetsMatch = filePreview ? filePreview.totalSheets > 0 && filePreview.matchedSheets === 0 : false;
 
@@ -417,12 +425,12 @@ export function FileList() {
                 ].filter(Boolean).join(' ')}
               >
                 {/* Fortschrittsbalken */}
-                {isUploading && (
+                {isPartOfMerge && isUploading && (
                   <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-surface-600">
                     <div className="h-full bg-emerald-500 transition-all duration-200 ease-out" style={{ width: `${Math.min(100, Math.round(uploadPct))}%` }} />
                   </div>
                 )}
-                {isProcessing && (
+                {isPartOfMerge && isProcessing && (
                   <div className="absolute bottom-0 left-0 right-0 h-[2px] overflow-hidden">
                     <div className="h-full w-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-shimmer" />
                   </div>
@@ -516,11 +524,11 @@ export function FileList() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </span>
-                ) : isProcessing ? (
+                ) : isPartOfMerge && isProcessing ? (
                   <span className="shrink-0 w-4 h-4 flex items-center justify-center">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   </span>
-                ) : isUploading ? (
+                ) : isPartOfMerge && isUploading ? (
                   <span className="shrink-0 text-xs font-mono text-emerald-400 w-8 text-right tabular-nums">{Math.round(uploadPct)}%</span>
                 ) : (
                   <span className="shrink-0 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600">

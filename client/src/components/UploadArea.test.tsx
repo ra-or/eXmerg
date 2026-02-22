@@ -10,9 +10,9 @@ const defaultProps = {
 };
 
 describe('UploadArea', () => {
-  it('rendert Hinweistext (Dateien hier ablegen. oder Drop files… und Unterstützt/Supports)', () => {
+  it('rendert Titel (Dateien hinzufügen / Add files) und Unterstützt/Supports', () => {
     render(<UploadArea {...defaultProps} />);
-    expect(screen.getByText(/Dateien hier ablegen\.|Drop your files here/)).toBeInTheDocument();
+    expect(screen.getByText(/Dateien hinzufügen|Add files/)).toBeInTheDocument();
     expect(screen.getByText(/Unterstützt:.*xlsx|Supports:.*xlsx/i)).toBeInTheDocument();
   });
 
