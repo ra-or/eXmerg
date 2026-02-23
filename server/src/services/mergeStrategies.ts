@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { MergeMode, SpreadsheetMergeOptions } from 'shared';
+import { WORKSHEET_NAME_MAX_LENGTH } from 'shared';
 
 export type SheetSource = {
   filename: string;
@@ -56,7 +57,7 @@ export const oneFilePerSheet: MergeStrategy = {
   mode: 'one_file_per_sheet',
   async execute(sources, _options) {
     const workbook = new ExcelJS.Workbook();
-    const baseName = (f: string) => f.replace(/\.[^.]+$/, '').slice(0, 31);
+    const baseName = (f: string) => f.replace(/\.[^.]+$/, '').slice(0, WORKSHEET_NAME_MAX_LENGTH);
 
     for (const s of sources) {
       const name = baseName(s.filename);

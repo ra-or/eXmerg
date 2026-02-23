@@ -1,7 +1,13 @@
 import ExcelJS from 'exceljs';
 import { readFile, writeFile } from 'fs/promises';
 import type { SpreadsheetMergeOptions } from 'shared';
-import { getExtension } from 'shared';
+import {
+  getExtension,
+  generateWorksheetName,
+  sanitizeWorksheetName,
+  truncateWorksheetName,
+  ensureUniqueWorksheetName,
+} from 'shared';
 import { parseOdsToWorkbook } from '../processing/parseOdsToWorkbook.js';
 import { copyWorksheet, getRowStyle, prepareValue } from '../processing/copySheet.js';
 
@@ -203,25 +209,16 @@ export async function getSheetNames(f: FileRef): Promise<string[]> {
   return wb.worksheets.map((ws) => ws.name);
 }
 
-/**
- * Gibt Sheet-Namen + erste 3 Zeilen des ersten Sheets zurück (für Hover-Vorschau).
- * Max. 8 Spalten, max. 3 Zeilen. Werte werden als Strings normalisiert.
- */
-export async function getSheetInfo(f: FileRef): Promise<{ names: string[]; previewRows: string[][] }> {
-  const wb = await loadWorkbook(f);
-  const names = wb.worksheets.map((ws) => ws.name);
+const PREVIEW_MAX_ROWS = 6;
+const PREVIEW_MAX_COLS = 8;
 
-  const ws = wb.worksheets[0];
-  if (!ws) return { names, previewRows: [] };
-
+function getPreviewRowsForWorksheet(ws: ExcelJS.Worksheet): string[][] {
   const previewRows: string[][] = [];
-  const maxRows = Math.min(ws.rowCount, 6);
-  const maxCols = 8;
-
+  const maxRows = Math.min(ws.rowCount ?? 0, PREVIEW_MAX_ROWS);
   for (let r = 1; r <= maxRows; r++) {
     const row = ws.getRow(r);
     const cells: string[] = [];
-    for (let c = 1; c <= maxCols; c++) {
+    for (let c = 1; c <= PREVIEW_MAX_COLS; c++) {
       const cell = row.getCell(c);
       const v = cell.value;
       if (v == null) { cells.push(''); continue; }
@@ -234,12 +231,24 @@ export async function getSheetInfo(f: FileRef): Promise<{ names: string[]; previ
         cells.push(String(v));
       }
     }
-    // Trailing-Leerzellen abschneiden
     while (cells.length > 0 && cells[cells.length - 1] === '') cells.pop();
     previewRows.push(cells);
   }
+  return previewRows;
+}
 
-  return { names, previewRows };
+/**
+ * Gibt pro Sheet Namen + erste Zeilen für Hover-Vorschau zurück.
+ * Pro Sheet max. 6 Zeilen, max. 8 Spalten. Werte als Strings.
+ */
+export async function getSheetInfo(f: FileRef): Promise<{ sheets: Array<{ id: string; name: string; previewRows: string[][] }> }> {
+  const wb = await loadWorkbook(f);
+  const sheets = wb.worksheets.map((ws, i) => ({
+    id: String(i),
+    name: ws.name,
+    previewRows: getPreviewRowsForWorksheet(ws),
+  }));
+  return { sheets };
 }
 
 /** Konvertiert Merge-Input in SheetCollectOptions (Modus, pro-Datei-Auswahl, Namen-Filter). */
@@ -297,10 +306,11 @@ export async function mergeSpreadsheets(input: MergeSpreadsheetInput): Promise<s
   const sources = await collectSheetSources(files, collectOptions, (pct, msg) => onProgress?.(Math.round(pct * 0.2), msg));
 
   const phase2Progress = wrapProgressPhase2(onProgress);
+  const customSheetNames = options.customSheetNames ?? undefined;
   if (options.mode === 'one_file_per_sheet') {
-    await copyFilesToSheets(sources, outputFilePath, warnings, phase2Progress);
+    await copyFilesToSheets(sources, outputFilePath, warnings, phase2Progress, customSheetNames);
   } else if (options.mode === 'consolidated_sheets') {
-    await copyFilesToSheetsWithSummary(sources, outputFilePath, warnings, phase2Progress);
+    await copyFilesToSheetsWithSummary(sources, outputFilePath, warnings, phase2Progress, customSheetNames);
   } else if (options.mode === 'all_to_one_sheet') {
     await mergeAllToOneSheetFormatted(sources, false, outputFilePath, warnings, phase2Progress);
   } else if (options.mode === 'all_with_source_column') {
@@ -322,17 +332,6 @@ export async function mergeSpreadsheets(input: MergeSpreadsheetInput): Promise<s
 // ─────────────────────────────────────────────────────────────────────────────
 // Hilfsfunktionen
 // ─────────────────────────────────────────────────────────────────────────────
-
-function makeSheetNameUnique(base: string, used: Set<string>): string {
-  const safe = base.replace(/[\\/?*[\]:]/g, '_').slice(0, 31);
-  if (!used.has(safe)) { used.add(safe); return safe; }
-  for (let n = 2; n < 1000; n++) {
-    const suffix = ` (${n})`;
-    const candidate = safe.slice(0, 31 - suffix.length) + suffix;
-    if (!used.has(candidate)) { used.add(candidate); return candidate; }
-  }
-  return safe;
-}
 
 /**
  * Schreibt ein Workbook als XLSX auf Disk.
@@ -381,18 +380,42 @@ function getNumericValue(cell: ExcelJS.Cell): number | null {
  * Modus B – jede Datei = ein Sheet.
  * Standard: In-Memory (writeBuffer + writeFile) für zuverlässig in Excel öffnbare XLSX.
  * Optional: EXCEL_STREAM=true für Streaming (kann ungültige XLSX liefern – ExcelJS-Known-Issue).
+ * customSheetNames: optional Dateiname → gewünschter Sheet-Name (leer = Dateiname).
  */
 async function copyFilesToSheets(
   sources: SheetSourceRef[],
   outputFilePath: string,
   warnings: string[],
   onProgress?: (pct: number, msg: string) => void,
+  customSheetNames?: Record<string, Record<string, string>>,
 ): Promise<void> {
   type MergeDims = { top: number; left: number; bottom: number; right: number };
   type WsInternal = ExcelJS.Worksheet & { _merges?: Record<string, MergeDims> };
 
   const usedNames = new Set<string>();
-  const baseNameCount = new Map<string, number>();
+  const sheetCountByFile = new Map<string, number>();
+  for (const s of sources) {
+    sheetCountByFile.set(s.filename, (sheetCountByFile.get(s.filename) ?? 0) + 1);
+  }
+
+  const getDestName = (source: SheetSourceRef): string => {
+    const fileBaseName = source.filename.replace(/\.[^.]+$/, '');
+    const byFile = customSheetNames?.[source.filename];
+    const custom = (typeof byFile === 'object' && byFile != null
+      ? byFile[String(source.sheetIndex)]
+      : undefined)?.trim();
+    if (custom) {
+      const sheetCount = sheetCountByFile.get(source.filename) ?? 1;
+      const raw = sheetCount === 1 ? custom : `${custom} - ${source.sheetName}`;
+      return ensureUniqueWorksheetName(truncateWorksheetName(sanitizeWorksheetName(raw)), usedNames);
+    }
+    return generateWorksheetName({
+      fileBaseName,
+      sheetName: source.sheetName,
+      sheetCountInFile: sheetCountByFile.get(source.filename) ?? 1,
+      existingNames: usedNames,
+    });
+  };
 
   if (process.env.EXCEL_STREAM === 'true') {
     // Streaming (kann bei ExcelJS zu ungültiger XLSX führen)
@@ -415,11 +438,8 @@ async function copyFilesToSheets(
         warnings.push(`${source.filename} (${source.sheetName}): ${err instanceof Error ? err.message : String(err)}`);
         continue;
       }
-      const baseName = source.filename.replace(/\.[^.]+$/, '');
-      const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
-      baseNameCount.set(baseName, countFromSameFile);
-      const rawName = countFromSameFile === 1 ? baseName : `${baseName} - ${source.sheetName}`;
-      const destName = makeSheetNameUnique(rawName, usedNames);
+      const destName = getDestName(source);
+      usedNames.add(destName);
       const destWs = streamWb.addWorksheet(destName);
       if (Array.isArray(srcWs.views) && srcWs.views.length > 0) {
         try {
@@ -483,11 +503,8 @@ async function copyFilesToSheets(
         warnings.push(`${source.filename} (${source.sheetName}): ${err instanceof Error ? err.message : String(err)}`);
         continue;
       }
-      const baseName = source.filename.replace(/\.[^.]+$/, '');
-      const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
-      baseNameCount.set(baseName, countFromSameFile);
-      const rawName = countFromSameFile === 1 ? baseName : `${baseName} - ${source.sheetName}`;
-      const destName = makeSheetNameUnique(rawName, usedNames);
+      const destName = getDestName(source);
+      usedNames.add(destName);
       const destWs = workbook.addWorksheet(destName);
       if (Array.isArray(srcWs.views) && srcWs.views.length > 0) {
         try {
@@ -879,8 +896,32 @@ async function copyFilesToSheetsWithSummary(
   outputFilePath: string,
   warnings: string[],
   onProgress?: (pct: number, msg: string) => void,
+  customSheetNames?: Record<string, Record<string, string>>,
 ): Promise<void> {
   if (sources.length === 0) throw new Error('Keine Sheet-Quellen für die Konsolidierung gefunden.');
+
+  const sheetCountByFile = new Map<string, number>();
+  for (const s of sources) {
+    sheetCountByFile.set(s.filename, (sheetCountByFile.get(s.filename) ?? 0) + 1);
+  }
+  const getDestName = (source: SheetSourceRef, usedNames: Set<string>): string => {
+    const fileBaseName = source.filename.replace(/\.[^.]+$/, '');
+    const byFile = customSheetNames?.[source.filename];
+    const custom = (typeof byFile === 'object' && byFile != null
+      ? byFile[String(source.sheetIndex)]
+      : undefined)?.trim();
+    if (custom) {
+      const sheetCount = sheetCountByFile.get(source.filename) ?? 1;
+      const raw = sheetCount === 1 ? custom : `${custom} - ${source.sheetName}`;
+      return ensureUniqueWorksheetName(truncateWorksheetName(sanitizeWorksheetName(raw)), usedNames);
+    }
+    return generateWorksheetName({
+      fileBaseName,
+      sheetName: source.sheetName,
+      sheetCountInFile: sheetCountByFile.get(source.filename) ?? 1,
+      existingNames: usedNames,
+    });
+  };
 
   const runningSum = new Map<string, number>();
   const templateEmptyCells = new Set<string>();
@@ -932,7 +973,11 @@ async function copyFilesToSheetsWithSummary(
   buildConsolidatedSheetFromSums(templateWs, runningSum, templateEmptyCells, styleFallback, maxRow, maxCol, summaryWs);
 
   const usedNames = new Set<string>();
-  const summaryName = makeSheetNameUnique('Zusammenfassung', usedNames);
+  const summaryName = ensureUniqueWorksheetName(
+    truncateWorksheetName(sanitizeWorksheetName('Zusammenfassung')),
+    usedNames,
+  );
+  usedNames.add(summaryName);
 
   if (process.env.EXCEL_STREAM === 'true') {
     type StreamWbType = { addWorksheet: (name: string) => StreamWs; commit: () => Promise<void> };
@@ -942,7 +987,6 @@ async function copyFilesToSheetsWithSummary(
     const destSummaryWs = streamWb.addWorksheet(summaryName) as StreamWs;
     await writeSheetToStream(destSummaryWs, summaryWs);
     onProgress?.(50, 'Schreibe Einzel-Sheets…');
-    const baseNameCount = new Map<string, number>();
     for (let i = 0; i < sources.length; i++) {
       const source = sources[i]!;
       onProgress?.(50 + Math.round((i / sources.length) * 45), `Sheet ${i + 1}/${sources.length}: ${source.filename}`);
@@ -953,11 +997,8 @@ async function copyFilesToSheetsWithSummary(
       } catch {
         continue;
       }
-      const baseName = source.filename.replace(/\.[^.]+$/, '');
-      const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
-      baseNameCount.set(baseName, countFromSameFile);
-      const rawName = countFromSameFile === 1 ? baseName : source.sheetName;
-      const destName = makeSheetNameUnique(rawName, usedNames);
+      const destName = getDestName(source, usedNames);
+      usedNames.add(destName);
       const destWs = streamWb.addWorksheet(destName) as StreamWs;
       await writeSheetToStream(destWs, ws);
     }
@@ -970,7 +1011,6 @@ async function copyFilesToSheetsWithSummary(
   const destSummary = workbook.addWorksheet(summaryName);
   copyWorksheet(summaryWs, destSummary);
   onProgress?.(50, 'Schreibe Einzel-Sheets…');
-  const baseNameCount = new Map<string, number>();
   for (let i = 0; i < sources.length; i++) {
     const source = sources[i]!;
     onProgress?.(50 + Math.round((i / sources.length) * 45), `Sheet ${i + 1}/${sources.length}: ${source.filename}`);
@@ -981,11 +1021,8 @@ async function copyFilesToSheetsWithSummary(
     } catch {
       continue;
     }
-    const baseName = source.filename.replace(/\.[^.]+$/, '');
-    const countFromSameFile = (baseNameCount.get(baseName) ?? 0) + 1;
-    baseNameCount.set(baseName, countFromSameFile);
-    const rawName = countFromSameFile === 1 ? baseName : source.sheetName;
-    const destName = makeSheetNameUnique(rawName, usedNames);
+    const destName = getDestName(source, usedNames);
+    usedNames.add(destName);
     const destWs = workbook.addWorksheet(destName);
     copyWorksheet(ws, destWs);
   }

@@ -43,12 +43,14 @@ export interface MergePreviewResponse {
 export interface SheetInfo {
   id: string;
   name: string;
+  /** Erste Zeilen für Hover-Vorschau (pro Sheet) */
+  previewRows?: string[][];
 }
 
 export interface SheetsResponse {
   sheets: SheetInfo[];
   error?: string;
-  /** Erste bis zu 3 Zeilen (Header + Daten) des ersten Sheets für Hover-Vorschau */
+  /** @deprecated Nutze sheets[].previewRows; Fallback: erstes Sheet */
   previewRows?: string[][];
 }
 

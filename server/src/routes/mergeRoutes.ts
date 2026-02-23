@@ -267,9 +267,8 @@ router.post(
     }
 
     try {
-      const { names, previewRows } = await getSheetInfo({ filePath: file.path, filename: file.originalname });
-      const sheets = names.map((name, i) => ({ id: String(i), name }));
-      res.json({ sheets, previewRows } as SheetsResponse);
+      const { sheets } = await getSheetInfo({ filePath: file.path, filename: file.originalname });
+      res.json({ sheets } as SheetsResponse);
     } catch (err) {
       res.status(500).json({ sheets: [], error: err instanceof Error ? err.message : 'Fehler' } as SheetsResponse);
     } finally {

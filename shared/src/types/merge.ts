@@ -24,6 +24,8 @@ export interface MergeOptionsBase {
   sheetSelectionMode?: SheetSelectionMode;
   /** Optional: Sheets nach Namen filtern (include/exclude). */
   sheetNameFilter?: SheetNameFilterOption;
+  /** Eigene Sheet-Namen (nur one_file_per_sheet + consolidated_sheets). Dateiname → Sheet-Index (als String "0","1",…) → gewünschter Name. Leer = automatisch aus Datei/Sheet. */
+  customSheetNames?: Record<string, Record<string, string>>;
 }
 
 export interface SpreadsheetMergeOptions extends MergeOptionsBase {

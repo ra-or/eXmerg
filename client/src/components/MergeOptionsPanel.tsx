@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { useStore } from '../store/useStore';
+import { useMemo, useState } from 'react';
+import { useStore, sortFileList } from '../store/useStore';
 import type { MergeMode, SheetNameFilterOption, SheetSelectionMode } from 'shared';
+import {
+  sanitizeWorksheetName,
+  truncateWorksheetName,
+  ensureUniqueWorksheetName,
+} from 'shared';
 import { useT } from '../i18n';
 
 const MODES: {
@@ -259,9 +264,79 @@ export function MergeOptionsPanel() {
   const setMergeOptions = useStore((s) => s.setMergeOptions);
   const outputFormat    = useStore((s) => s.outputFormat);
   const setOutputFormat = useStore((s) => s.setOutputFormat);
-  const files = useStore((s) => s.files);
+  const files           = useStore((s) => s.files);
+  const fileSortOrder   = useStore((s) => s.fileSortOrder);
+  const sheetInfo       = useStore((s) => s.sheetInfo);
+
+  const [customNamesOpen, setCustomNamesOpen] = useState(false);
 
   const currentMode = mergeOptions.mode;
+  const sortedFiles = sortFileList(files, fileSortOrder);
+  const showCustomSheetNames = currentMode === 'one_file_per_sheet' || currentMode === 'consolidated_sheets';
+
+  type MergeOrderRow = { file: typeof sortedFiles[number]; sheetId: string; sheetName: string; fileBaseName: string; sheetCount: number };
+
+  /** Reihen in Merge-Reihenfolge (eine Zeile = ein Reiter in der Ausgabedatei). */
+  const mergeOrderRows = useMemo((): MergeOrderRow[] => {
+    const rows: MergeOrderRow[] = [];
+    for (const file of sortedFiles) {
+      const fileBaseName = file.filename.replace(/\.[^.]+$/, '');
+      const sheets = sheetInfo[file.id]?.sheets ?? [];
+      if (sheets.length > 1) {
+        for (const sheet of sheets) {
+          rows.push({ file, sheetId: sheet.id, sheetName: sheet.name, fileBaseName, sheetCount: sheets.length });
+        }
+      } else {
+        rows.push({ file, sheetId: '0', sheetName: sheets[0]?.name ?? '', fileBaseName, sheetCount: 1 });
+      }
+    }
+    return rows;
+  }, [sortedFiles, sheetInfo]);
+
+  /** Effektive Reiter-Namen in Merge-Reihenfolge (sanitized, gekürzt, eindeutig) wie in der Merge-Datei. Key: `${filename}\t${sheetId}` */
+  const effectiveNames = useMemo(() => {
+    const used = new Set<string>();
+    const effectiveNames = new Map<string, string>();
+    const custom = mergeOptions.customSheetNames ?? {};
+    for (const row of mergeOrderRows) {
+      const byFile = custom[row.file.filename] ?? {};
+      const defaultRaw = row.sheetCount > 1 ? `${row.fileBaseName} – ${row.sheetName}` : row.fileBaseName;
+      const rawInput = byFile[row.sheetId]?.trim() ?? '';
+      const raw = rawInput !== '' ? rawInput : defaultRaw;
+      const effective = ensureUniqueWorksheetName(
+        truncateWorksheetName(sanitizeWorksheetName(raw)),
+        used,
+      );
+      used.add(effective);
+      effectiveNames.set(`${row.file.filename}\t${row.sheetId}`, effective);
+    }
+    return effectiveNames;
+  }, [mergeOrderRows, mergeOptions.customSheetNames]);
+
+  /** Schnellnamen-Muster: alle Reiter in Merge-Reihenfolge mit einem Muster belegen (oder zurücksetzen). */
+  const applyNamePattern = (patternId: string) => {
+    if (patternId === 'reset') {
+      setMergeOptions({ ...mergeOptions, customSheetNames: undefined });
+      return;
+    }
+    const patterns: Record<string, (index: number) => string> = {
+      '01': (i) => String(i + 1).padStart(2, '0'),
+      '001': (i) => String(i + 1).padStart(3, '0'),
+      '1': (i) => String(i + 1),
+      'sheet': (i) => `Sheet ${i + 1}`,
+      'tab': (i) => `Tab ${String(i + 1).padStart(2, '0')}`,
+      'data': (i) => `Data ${String(i + 1).padStart(2, '0')}`,
+    };
+    const fn = patterns[patternId];
+    if (!fn) return;
+    const next: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < mergeOrderRows.length; i++) {
+      const row = mergeOrderRows[i];
+      if (!next[row.file.filename]) next[row.file.filename] = {};
+      next[row.file.filename][row.sheetId] = fn(i);
+    }
+    setMergeOptions({ ...mergeOptions, customSheetNames: next });
+  };
 
   const setMode = (mode: MergeMode) => {
     setMergeOptions({ ...mergeOptions, mode });
@@ -365,6 +440,144 @@ export function MergeOptionsPanel() {
             );
           })}
       </div>
+
+      {/* Namen der Tab-Reiter in der Ausgabedatei (ausklappbar) */}
+      {showCustomSheetNames && (
+        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-surface-600">
+          <button
+            type="button"
+            onClick={() => setCustomNamesOpen((o) => !o)}
+            className="w-full flex items-center gap-2 text-left rounded-lg py-2 px-2 -mx-2 hover:bg-zinc-100 dark:hover:bg-surface-700/50 transition-colors"
+            aria-expanded={customNamesOpen}
+          >
+            <svg
+              className={['w-4 h-4 shrink-0 text-zinc-500 transition-transform', customNamesOpen && 'rotate-90'].filter(Boolean).join(' ')}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              {t('merge.customSheetNames')}
+            </span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate flex-1 min-w-0">
+              {!customNamesOpen && t('merge.customSheetNamesCollapsed')}
+            </span>
+          </button>
+          {customNamesOpen && (
+            <div className="mt-3 pl-6 space-y-3">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                {t('merge.customSheetNamesIntro')}
+              </p>
+              {mergeOrderRows.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{t('merge.namePatternsLabel')}</span>
+                  {[
+                    { id: '01', labelKey: 'merge.namePattern01' as const },
+                    { id: '001', labelKey: 'merge.namePattern001' as const },
+                    { id: '1', labelKey: 'merge.namePattern1' as const },
+                    { id: 'sheet', labelKey: 'merge.namePatternSheet' as const },
+                    { id: 'tab', labelKey: 'merge.namePatternTab' as const },
+                    { id: 'data', labelKey: 'merge.namePatternData' as const },
+                    { id: 'reset', labelKey: 'merge.namePatternReset' as const },
+                  ].map(({ id, labelKey }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => applyNamePattern(id)}
+                      className={[
+                        'px-2 py-1 rounded text-xs font-medium border transition-colors',
+                        id === 'reset'
+                          ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15'
+                          : 'border-zinc-400 dark:border-surface-500 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-surface-600',
+                      ].join(' ')}
+                    >
+                      {t(labelKey)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {sortedFiles.length === 0 ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
+                  {t('merge.customSheetNamesNoFiles')}
+                </p>
+              ) : (
+                <>
+                  {/* Spaltenüberschriften (bleiben beim Scrollen sichtbar) */}
+                  <div className="grid grid-cols-[1fr,1fr] gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-surface-600 pb-1.5">
+                    <span>{t('merge.customSheetNamesColSource')}</span>
+                    <span>{t('merge.customSheetNamesColOutput')}</span>
+                  </div>
+                  <div className="space-y-4 max-h-[280px] overflow-auto pr-1 mt-1.5">
+                  {sortedFiles.map((file) => {
+                    const sheets = sheetInfo[file.id]?.sheets ?? [];
+                    const byFile = mergeOptions.customSheetNames?.[file.filename] ?? {};
+                    const updateSheetName = (sheetId: string, value: string) => {
+                      const nextByFile = { ...byFile };
+                      const v = value.trim();
+                      if (v) nextByFile[sheetId] = v;
+                      else delete nextByFile[sheetId];
+                      const next = { ...(mergeOptions.customSheetNames ?? {}) };
+                      if (Object.keys(nextByFile).length) next[file.filename] = nextByFile;
+                      else delete next[file.filename];
+                      setMergeOptions({ ...mergeOptions, customSheetNames: Object.keys(next).length ? next : undefined });
+                    };
+                    const fileBaseName = file.filename.replace(/\.[^.]+$/, '');
+                    if (sheets.length > 1) {
+                      return (
+                        <div key={file.id} className="space-y-2">
+                          <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 truncate" title={file.filename}>
+                            {t('merge.customSheetNamesMulti')}: {file.filename}
+                          </p>
+                          <div className="space-y-1.5 pl-3 border-l-2 border-zinc-200 dark:border-surface-600">
+                            {sheets.map((sheet) => {
+                              const key = `${file.filename}\t${sheet.id}`;
+                              const effectiveName = effectiveNames.get(key) ?? `${fileBaseName} – ${sheet.name}`;
+                              return (
+                                <div key={sheet.id} className="grid grid-cols-[1fr,1fr] gap-2 items-center">
+                                  <span className="text-xs text-zinc-500 dark:text-zinc-500 truncate" title={sheet.name}>
+                                    → {sheet.name}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={effectiveName}
+                                    onChange={(e) => updateSheetName(sheet.id, e.target.value)}
+                                    className="text-xs px-2 py-1.5 rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                                    title={effectiveName}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
+                    const key0 = `${file.filename}\t0`;
+                    const effectiveName0 = effectiveNames.get(key0) ?? fileBaseName;
+                    return (
+                      <div key={file.id} className="grid grid-cols-[1fr,1fr] gap-2 items-center">
+                        <span className="text-xs text-zinc-600 dark:text-zinc-500 truncate" title={file.filename}>
+                          {t('merge.customSheetNamesSingle')}: {file.filename}
+                        </span>
+                        <input
+                          type="text"
+                          value={effectiveName0}
+                          onChange={(e) => updateSheetName('0', e.target.value)}
+                          className="text-xs px-2 py-1.5 rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                          title={effectiveName0}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

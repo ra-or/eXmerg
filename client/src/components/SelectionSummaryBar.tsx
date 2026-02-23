@@ -23,6 +23,10 @@ export function SelectionSummaryBar({
 }: SelectionSummaryBarProps) {
   const t = useT();
   const hasSelection = selectedFileCount > 0;
+  const fileLabel = fileCount === 1 ? t('files.unitFile') : t('files.unitFiles');
+  const sheetLabel = sheetCount === 1 ? t('files.unitSheet') : t('files.unitSheets');
+  const selectedFileLabel = selectedFileCount === 1 ? t('files.unitFile') : t('files.unitFiles');
+  const selectedSheetLabel = selectedSheetCount === 1 ? t('files.unitSheet') : t('files.unitSheets');
   return (
     <div
       className="flex items-center justify-between gap-4 px-3 py-2 rounded-lg
@@ -30,14 +34,24 @@ export function SelectionSummaryBar({
         flex-1 min-w-0"
     >
       <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-        {t('files.totalAvailable', { fileCount, sheetCount })}
+        {t('files.totalAvailable', { fileCount, sheetCount, fileLabel, sheetLabel })}
       </span>
       {hasSelection && (
         <span
           className="text-xs px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-400 shrink-0"
-          aria-label={t('files.selectedForMerge', { fileCount: selectedFileCount, sheetCount: selectedSheetCount })}
+          aria-label={t('files.selectedForMerge', {
+            fileCount: selectedFileCount,
+            sheetCount: selectedSheetCount,
+            fileLabel: selectedFileLabel,
+            sheetLabel: selectedSheetLabel,
+          })}
         >
-          {t('files.selectedForMerge', { fileCount: selectedFileCount, sheetCount: selectedSheetCount })}
+          {t('files.selectedForMerge', {
+            fileCount: selectedFileCount,
+            sheetCount: selectedSheetCount,
+            fileLabel: selectedFileLabel,
+            sheetLabel: selectedSheetLabel,
+          })}
         </span>
       )}
     </div>

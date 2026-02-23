@@ -27,6 +27,7 @@ export const mergeOptionsSchema = z.object({
   sheetSelectionMode: sheetSelectionModeSchema.optional(),
   sheetNameFilter: sheetNameFilterSchema.optional(),
   outputFormat: z.enum(['xlsx', 'ods']).optional(),
+  customSheetNames: z.record(z.string(), z.record(z.string(), z.string())).optional(),
 });
 
 export type MergeOptionsInput = z.infer<typeof mergeOptionsSchema>;

@@ -111,6 +111,14 @@ export function FileList() {
         .reduce((s, f) => s + (filterActive ? f.matchedSheets : f.totalSheets), 0),
     [selectionPreview.files, selectedIds, filterActive],
   );
+  /** Bei aktivem Filter: Summe aller gematchten Sheets (für Anzeige wenn keine Datei manuell ausgewählt) */
+  const totalMatchedSheets = useMemo(
+    () => selectionPreview.files.reduce((s, f) => s + f.matchedSheets, 0),
+    [selectionPreview.files],
+  );
+  /** Anzeige „ausgewählt“: bei Filter ohne manuelle Auswahl = alle Dateien + gematchte Sheets */
+  const displaySelectedFileCount = (filterActive && selectedIds.size === 0) ? files.length : selectedIds.size;
+  const displaySelectedSheetCount = (filterActive && selectedIds.size === 0) ? totalMatchedSheets : selectedSheetCount;
 
   const dragSrc = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
@@ -170,18 +178,33 @@ export function FileList() {
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+  /** 'file' = Maus auf Dateizeile, 'panel' = Maus auf Sheet-Auswahl-Zeile (dann Vorschau unter Panel) */
+  const [hoverTarget, setHoverTarget] = useState<'file' | 'panel' | null>(null);
+  /** Wenn gesetzt: Vorschau für dieses Sheet anzeigen (nur sinnvoll wenn Panel geöffnet). */
+  const [hoveredSheetId, setHoveredSheetId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const previewDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleRowMouseEnter = (id: string, el: HTMLElement) => {
     setHoveredId(id);
     setHoveredRect(el.getBoundingClientRect());
+    setHoverTarget('file');
+    setHoveredSheetId(null);
+    setShowPreview(false);
+    previewDelayRef.current = setTimeout(() => setShowPreview(true), PREVIEW_DELAY_MS);
+  };
+  const handleSheetPanelMouseEnter = (fileId: string, el: HTMLElement) => {
+    setHoveredId(fileId);
+    setHoveredRect(el.getBoundingClientRect());
+    setHoverTarget('panel');
     setShowPreview(false);
     previewDelayRef.current = setTimeout(() => setShowPreview(true), PREVIEW_DELAY_MS);
   };
   const handleRowMouseLeave = () => {
     setHoveredId(null);
     setHoveredRect(null);
+    setHoverTarget(null);
+    setHoveredSheetId(null);
     setShowPreview(false);
     if (previewDelayRef.current) {
       clearTimeout(previewDelayRef.current);
@@ -192,6 +215,8 @@ export function FileList() {
   const hidePreviewOnScroll = useCallback(() => {
     setHoveredId(null);
     setHoveredRect(null);
+    setHoverTarget(null);
+    setHoveredSheetId(null);
     setShowPreview(false);
     if (previewDelayRef.current) {
       clearTimeout(previewDelayRef.current);
@@ -208,14 +233,48 @@ export function FileList() {
     return () => window.removeEventListener('scroll', hidePreviewOnScroll);
   }, [hidePreviewOnScroll]);
 
-  // Virtualisierung für lange Listen (100+ Dateien)
+  // Erweiterte Zeilen: pro Datei eine Zeile, bei geöffneter Sheet-Auswahl eine zusätzliche Zeile direkt darunter
+  type ListRow = { type: 'file'; file: (typeof sortedFiles)[number]; fileIndex: number } | { type: 'sheetPanel'; fileId: string; fileIndex: number };
+  const listItems = useMemo<ListRow[]>(() => {
+    const rows: ListRow[] = [];
+    sortedFiles.forEach((file, i) => {
+      rows.push({ type: 'file', file, fileIndex: i });
+      if (openSheets[file.id]) rows.push({ type: 'sheetPanel', fileId: file.id, fileIndex: i });
+    });
+    return rows;
+  }, [sortedFiles, openSheets]);
+
+  const ROW_HEIGHT = 58;
+  /** Mindesthöhe + Platz für Sheet-Buttons (ca. 8 pro Zeile, ~40px pro Zeile). */
+  const getSheetPanelRowHeight = (sheetCount: number) => {
+    const minHeight = 92;
+    const padding = 56;
+    const rowHeight = 40;
+    const perRow = 8;
+    const rows = Math.ceil(Math.max(1, sheetCount) / perRow);
+    return Math.max(minHeight, padding + rows * rowHeight);
+  };
+
+  // Virtualisierung für lange Listen (100+ Dateien); Sheet-Panel-Höhe dynamisch nach Sheet-Anzahl
   const listParentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
-    count: sortedFiles.length,
+    count: listItems.length,
     getScrollElement: () => listParentRef.current,
-    estimateSize: () => 58,
+    estimateSize: (i) => {
+      const row = listItems[i];
+      if (row?.type === 'sheetPanel') {
+        const n = sheetInfo[row.fileId]?.sheets?.length ?? 0;
+        return getSheetPanelRowHeight(n) + 6; // +6 paddingBottom der Zeile
+      }
+      return ROW_HEIGHT + 6;
+    },
     overscan: 5,
   });
+
+  // Bei Wechsel der geöffneten Sheet-Auswahl Virtualizer neu messen (verhindert schwarzen Bereich)
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [openSheets, rowVirtualizer]);
 
   // ── Sheet-Info automatisch laden ──────────────────────────────────────────
   useEffect(() => {
@@ -224,11 +283,12 @@ export function FileList() {
       const info = sheetInfo[item.id];
       if (!info || !info.loading) continue;
       void fetchSheets(item.file).then((res) => {
+        const sheets = res.sheets ?? [];
         setSheetInfo(item.id, {
-          sheets: res.sheets,
+          sheets,
           loading: false,
           selected: [],
-          previewRows: res.previewRows,
+          previewRows: sheets[0]?.previewRows ?? res.previewRows,
         });
       }).catch(() => {
         setSheetInfo(item.id, { sheets: [], loading: false, selected: [] });
@@ -296,8 +356,8 @@ export function FileList() {
         <SelectionSummaryBar
           fileCount={files.length}
           sheetCount={totalSheetsInList}
-          selectedFileCount={selectedIds.size}
-          selectedSheetCount={selectedSheetCount}
+          selectedFileCount={displaySelectedFileCount}
+          selectedSheetCount={displaySelectedSheetCount}
         />
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{t('files.sortOrder')}</span>
@@ -381,8 +441,75 @@ export function FileList() {
           className="w-full"
         >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const index = virtualRow.index;
-            const item = sortedFiles[index]!;
+            const row = listItems[virtualRow.index]!;
+            if (row.type === 'sheetPanel') {
+              const panelItem = sortedFiles.find((f) => f.id === row.fileId);
+              const panelInfo = sheetInfo[row.fileId];
+              if (!panelItem || !panelInfo || (panelInfo.sheets?.length ?? 0) <= 1) return null;
+              const isHoveredPanel = hoveredId === row.fileId;
+              const panelHeight = getSheetPanelRowHeight(panelInfo.sheets.length);
+              return (
+                <div
+                  key={`sheet-${row.fileId}`}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: virtualRow.size - 6,
+                    overflow: 'hidden',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: 6,
+                  }}
+                >
+                  <div
+                    className={[
+                      'p-3 rounded-lg flex flex-wrap gap-2 min-h-[72px] border transition-colors overflow-auto',
+                      isHoveredPanel
+                        ? 'bg-zinc-200/90 dark:bg-surface-700/90 border-zinc-400 dark:border-surface-500'
+                        : 'bg-zinc-100 dark:bg-surface-800 border-zinc-300 dark:border-surface-600',
+                    ].join(' ')}
+                    style={{ maxHeight: panelHeight - 12 }}
+                    onMouseEnter={(e) => handleSheetPanelMouseEnter(row.fileId, e.currentTarget)}
+                    onMouseLeave={handleRowMouseLeave}
+                  >
+                    <span className="text-xs text-zinc-600 dark:text-zinc-500 w-full mb-0.5">
+                      {t('files.sheetsSelect')}
+                    </span>
+                    {panelInfo.sheets.map((sheet) => {
+                      const sel = panelInfo.selected.includes(sheet.id);
+                      const isHoveredSheet = hoveredId === row.fileId && hoveredSheetId === sheet.id;
+                      return (
+                        <button
+                          key={sheet.id}
+                          type="button"
+                          onClick={() => toggleSheetSelected(panelItem.id, sheet.id)}
+                          onMouseEnter={() => setHoveredSheetId(sheet.id)}
+                          onMouseLeave={() => setHoveredSheetId(null)}
+                          className={[
+                            'px-2.5 py-1 rounded text-xs font-medium border transition-colors',
+                            sel
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                              : isHoveredSheet
+                              ? 'bg-zinc-300 dark:bg-surface-600 border-zinc-500 dark:border-surface-500'
+                              : 'bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border-zinc-400 dark:border-surface-500 hover:border-zinc-500',
+                          ].join(' ')}
+                        >
+                          {sel && (
+                            <svg className="inline w-2.5 h-2.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          {sheet.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+
+            const { file: item, fileIndex: index } = row;
             const ext           = getExtension(item.filename);
             const color         = EXT_COLORS[ext] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/20';
             const info          = sheetInfo[item.id];
@@ -396,6 +523,7 @@ export function FileList() {
             return (
               <div
                 key={item.id}
+                data-file-row
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -421,7 +549,9 @@ export function FileList() {
                     ? 'bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/40 scale-[1.01]'
                     : isSelected
                     ? 'bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/20'
-                    : 'bg-zinc-100 dark:bg-surface-800 border-zinc-300 dark:border-surface-600 hover:border-zinc-400 dark:hover:border-surface-500',
+                    : hoveredId === item.id
+                    ? 'bg-zinc-200/80 dark:bg-surface-700/90 border-zinc-400 dark:border-surface-500'
+                    : 'bg-zinc-100 dark:bg-surface-800 border-zinc-300 dark:border-surface-600 hover:border-zinc-400 hover:bg-zinc-200/80 dark:hover:border-surface-500 dark:hover:bg-surface-700/90',
                 ].filter(Boolean).join(' ')}
               >
                 {/* Fortschrittsbalken */}
@@ -497,11 +627,14 @@ export function FileList() {
                   </span>
                 )}
 
-                {/* Sheet-Auswahl-Toggle */}
+                {/* Sheet-Auswahl-Toggle (öffnet feste Zeile direkt unter dieser Datei) */}
                 {hasMultiSheets && !busy && (
                   <button
                     type="button"
-                    onClick={() => setOpenSheets((p) => ({ ...p, [item.id]: !sheetsOpen }))}
+                    onClick={() => {
+                      const next = !sheetsOpen;
+                      setOpenSheets((p) => (next ? { [item.id]: true } : { ...p, [item.id]: false }));
+                    }}
                     className={[
                       'shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors',
                       sheetsOpen
@@ -558,56 +691,32 @@ export function FileList() {
                 )}
               </div>
 
-              {/* ── Sheet-Auswahl-Panel ────────────────────────────────── */}
-              {hasMultiSheets && sheetsOpen && (
-                <div className="mt-1 ml-8 p-3 rounded-lg bg-zinc-100 dark:bg-surface-800/60 border border-zinc-300 dark:border-surface-600 flex flex-wrap gap-2 animate-slide-up">
-                  <span className="text-xs text-zinc-600 w-full mb-1">
-                    {t('files.sheetsSelect')}
-                  </span>
-                  {info.sheets.map((sheet) => {
-                    const sel = info.selected.includes(sheet.id);
-                    return (
-                      <button
-                        key={sheet.id}
-                        type="button"
-                        onClick={() => toggleSheetSelected(item.id, sheet.id)}
-                        className={[
-                          'px-2.5 py-1 rounded text-xs font-medium border transition-colors',
-                          sel
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border-zinc-400 dark:border-surface-500 hover:border-zinc-500',
-                        ].join(' ')}
-                      >
-                        {sel && (
-                          <svg className="inline w-2.5 h-2.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                        {sheet.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
               </div>
           );
           })}
         </div>
       </div>
 
-      {/* Hover-Vorschau: viewport-aware (überdeckt Liste nicht), erscheint nach kurzer Verzögerung */}
+      {/* Hover-Vorschau: viewport-aware; bei geöffneter Sheet-Auswahl unter dem Panel, sonst unter der Zeile; pro Sheet wenn über Sheet-Button gehovert */}
       {showPreview && hoveredId && hoveredRect && (() => {
-        const preview = sheetInfo[hoveredId]?.previewRows;
+        const info = sheetInfo[hoveredId];
+        const preview = (hoveredSheetId && info?.sheets)
+          ? (info.sheets.find((s) => s.id === hoveredSheetId)?.previewRows ?? info.previewRows)
+          : info?.previewRows;
         if (!preview || preview.length === 0) return null;
+        const hoveredSheetName = hoveredSheetId && info?.sheets?.find((s) => s.id === hoveredSheetId)?.name;
         const win = typeof window !== 'undefined' ? window : null;
-        const spaceBelow = win ? win.innerHeight - hoveredRect.bottom - PREVIEW_MARGIN : 400;
+        const anchorBottom = (hoverTarget === 'panel' || !openSheets[hoveredId])
+          ? hoveredRect.bottom
+          : hoveredRect.bottom + 6 + getSheetPanelRowHeight(sheetInfo[hoveredId]?.sheets?.length ?? 0) + 6;
+        const spaceBelow = win ? win.innerHeight - anchorBottom - PREVIEW_MARGIN : 400;
         const showAbove = spaceBelow < PREVIEW_MAX_HEIGHT;
         const left = win
           ? Math.max(PREVIEW_MARGIN, Math.min(hoveredRect.left, win.innerWidth - PREVIEW_MAX_WIDTH - PREVIEW_MARGIN))
           : hoveredRect.left;
         const top = showAbove
           ? Math.max(PREVIEW_MARGIN, hoveredRect.top - PREVIEW_MAX_HEIGHT - 8)
-          : hoveredRect.bottom + 6;
+          : anchorBottom + 6;
         return (
           <Portal>
             <div
@@ -620,7 +729,11 @@ export function FileList() {
               }}
             >
               <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5 shrink-0">
-                {preview.length === 1 ? t('files.previewRow', { n: preview.length }) : t('files.previewRows', { n: preview.length })}
+                {hoveredSheetName
+                  ? t('files.previewSheetRows', { name: hoveredSheetName, n: preview.length })
+                  : preview.length === 1
+                  ? t('files.previewRow', { n: preview.length })
+                  : t('files.previewRows', { n: preview.length })}
               </p>
               <div className="overflow-auto min-h-0 flex-1">
                 <table className="text-xs border-collapse">
