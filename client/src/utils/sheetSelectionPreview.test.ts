@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  matchesSheetName,
-  evaluateSheetSelection,
-  type FileMeta,
-  type SheetNameFilterOption,
-} from './sheetSelectionPreview';
+import { matchesSheetName, type SheetNameFilterOption } from 'shared';
+import { evaluateSheetSelection, type FileMeta } from './sheetSelectionPreview';
 
 describe('matchesSheetName', () => {
   it('exact match (case insensitive by default)', () => {

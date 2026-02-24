@@ -276,7 +276,7 @@ export function MergeOptionsPanel() {
 
   type MergeOrderRow = { file: typeof sortedFiles[number]; sheetId: string; sheetName: string; fileBaseName: string; sheetCount: number };
 
-  /** Reihen in Merge-Reihenfolge (eine Zeile = ein Reiter in der Ausgabedatei). */
+  /** Reihen in Merge-Reihenfolge (eine Zeile = ein Sheet in der Ausgabedatei). */
   const mergeOrderRows = useMemo((): MergeOrderRow[] => {
     const rows: MergeOrderRow[] = [];
     for (const file of sortedFiles) {
@@ -441,17 +441,17 @@ export function MergeOptionsPanel() {
           })}
       </div>
 
-      {/* Namen der Tab-Reiter in der Ausgabedatei (ausklappbar) */}
+      {/* Namen der Sheets in der Ausgabedatei (ausklappbar, dezentes Feature) */}
       {showCustomSheetNames && (
-        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-surface-600">
+        <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-surface-700/80">
           <button
             type="button"
             onClick={() => setCustomNamesOpen((o) => !o)}
-            className="w-full flex items-center gap-2 text-left rounded-lg py-2 px-2 -mx-2 hover:bg-zinc-100 dark:hover:bg-surface-700/50 transition-colors"
+            className="w-full flex items-center gap-1.5 text-left rounded py-1.5 px-1.5 -mx-1.5 hover:bg-zinc-50 dark:hover:bg-surface-800/40 transition-colors"
             aria-expanded={customNamesOpen}
           >
             <svg
-              className={['w-4 h-4 shrink-0 text-zinc-500 transition-transform', customNamesOpen && 'rotate-90'].filter(Boolean).join(' ')}
+              className={['w-3.5 h-3.5 shrink-0 text-zinc-400 dark:text-zinc-500 transition-transform', customNamesOpen && 'rotate-90'].filter(Boolean).join(' ')}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -459,10 +459,10 @@ export function MergeOptionsPanel() {
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
               {t('merge.customSheetNames')}
             </span>
-            <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate flex-1 min-w-0">
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 truncate flex-1 min-w-0">
               {!customNamesOpen && t('merge.customSheetNamesCollapsed')}
             </span>
           </button>

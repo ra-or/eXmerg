@@ -25,7 +25,7 @@
 | **Client-Bundle** | Route-based oder lazy `React.lazy()` für schwere Komponenten (z. B. DownloadHistory/Templates nur bei Bedarf laden). Kann bei wachsendem Feature-Set sinnvoll werden. | Gering |
 | **API-Versionierung** | Pfad wie `/api/v1/merge` oder Header `Accept: application/vnd.exmerg.v1+json` – erleichtert spätere Breaking Changes. | Gering |
 | **Logging** | Strukturierte Logs (z. B. JSON) mit Request-ID, Dauer, Dateianzahl – hilft bei Debug und Monitoring. | Gering |
-| **Health-Check** | `GET /api/health` (z. B. „OK“ + Versions- oder Build-Info) für Load-Balancer / Docker. | Gering |
+| **Health-Check** | ~~`GET /api/health`~~ **Bereits umgesetzt:** `GET /api/health` für Load-Balancer/Docker vorhanden. | – |
 
 ---
 
@@ -101,7 +101,7 @@ Ideen, die technisch Eindruck machen oder Power-User/Devs ansprechen – ohne de
 
 ## 4. Empfohlene Reihenfolge (wenn du priorisieren willst)
 
-1. **Schnell & sichtbar:** Console-Banner (3.6) + Limits aus Backend (1) + Health-Check (2).
+1. **Schnell & sichtbar:** Console-Banner (3.6) + Limits aus Backend (1). (Health-Check ist bereits umgesetzt.)
 2. **Respect bei Power-Usern:** Tastatur-Shortcuts (3.1) + API/Scripting in README hervorheben (3.2).
 3. **Spielerei:** Konami-Code (3.3) oder Pro-Mode-Toggle (3.4).
 4. **Größere Brocken:** Merge abbrechen (1), Merge from URL (3.5), dann die Speicher-Optimierungen aus dem großen-Dateien-Plan.

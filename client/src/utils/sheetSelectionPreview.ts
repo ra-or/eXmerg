@@ -3,17 +3,13 @@
  * Verwendet nur vorhandene Sheet-Metadaten und aktuelle Optionen.
  */
 
+import type { SheetNameFilterOption } from 'shared';
+import { matchesSheetName } from 'shared';
+
 export interface FileMeta {
   id: string;
   filename: string;
   sheets: { name: string; index: number }[];
-}
-
-export interface SheetNameFilterOption {
-  mode: 'include' | 'exclude';
-  values: string[];
-  match?: 'exact' | 'contains' | 'regex';
-  caseSensitive?: boolean;
 }
 
 /** Optionen wie im Backend (mode + pro-Datei oder global selectedSheets + Filter). */
@@ -24,39 +20,6 @@ export interface SheetCollectOptionsForPreview {
   /** Global bei mode === 'selected' (gleiche Indizes für jede Datei). */
   selectedSheets?: number[];
   sheetNameFilter?: SheetNameFilterOption;
-}
-
-const DEFAULT_MATCH: NonNullable<SheetNameFilterOption['match']> = 'exact';
-const DEFAULT_CASE_SENSITIVE = false;
-
-/**
- * Prüft, ob ein Sheet-Name zum Filter passt.
- * Gleiche Logik wie im Backend (mergeService.matchesSheetName).
- */
-export function matchesSheetName(sheetName: string, filter: SheetNameFilterOption): boolean {
-  const match = filter.match ?? DEFAULT_MATCH;
-  const caseSensitive = filter.caseSensitive ?? DEFAULT_CASE_SENSITIVE;
-  const name = caseSensitive ? sheetName : sheetName.toLowerCase();
-  const values = filter.values;
-
-  for (const raw of values) {
-    const value = caseSensitive ? raw : raw.toLowerCase();
-    let hit = false;
-    if (match === 'exact') {
-      hit = name === value;
-    } else if (match === 'contains') {
-      hit = name.includes(value);
-    } else if (match === 'regex') {
-      try {
-        const re = new RegExp(value, caseSensitive ? '' : 'i');
-        hit = re.test(sheetName);
-      } catch {
-        hit = false;
-      }
-    }
-    if (hit) return true;
-  }
-  return false;
 }
 
 export interface SheetSelectionResult {

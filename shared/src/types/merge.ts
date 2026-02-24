@@ -29,8 +29,9 @@ export interface MergeOptionsBase {
 }
 
 export interface SpreadsheetMergeOptions extends MergeOptionsBase {
+  /** Discriminator für den Optionstyp (z. Z. nur Tabellen-Merge). Erweiterbar z. B. für 'csv'. */
   outputType: 'xlsx';
-  /** Ausgabeformat der Datei: xlsx (Standard) oder ods */
+  /** Tatsächliches Dateiformat der Ausgabe: .xlsx (Standard) oder .ods. Unabhängig von outputType. */
   outputFormat?: 'xlsx' | 'ods';
 }
 

@@ -1,12 +1,13 @@
 import ExcelJS from 'exceljs';
 import { readFile, writeFile } from 'fs/promises';
-import type { SpreadsheetMergeOptions } from 'shared';
+import type { SpreadsheetMergeOptions, SheetNameFilterOption } from 'shared';
 import {
   getExtension,
   generateWorksheetName,
   sanitizeWorksheetName,
   truncateWorksheetName,
   ensureUniqueWorksheetName,
+  matchesSheetName,
 } from 'shared';
 import { parseOdsToWorkbook } from '../processing/parseOdsToWorkbook.js';
 import { copyWorksheet, getRowStyle, prepareValue } from '../processing/copySheet.js';
@@ -40,14 +41,6 @@ export interface SheetSourceRef {
   sheetIndex: number;
 }
 
-/** Sheet-Name-Filter (include = nur behalten; exclude = entfernen). */
-export interface SheetNameFilter {
-  mode: 'include' | 'exclude';
-  values: string[];
-  match?: 'exact' | 'contains' | 'regex';
-  caseSensitive?: boolean;
-}
-
 /** Optionen für collectSheetSources. */
 export interface SheetCollectOptions {
   mode?: 'all' | 'first' | 'selected';
@@ -58,40 +51,7 @@ export interface SheetCollectOptions {
    * Ermöglicht Backward-Kompatibilität mit Record<filename, string[]>-API.
    */
   selectedSheetsByFile?: Record<string, number[]>;
-  sheetNameFilter?: SheetNameFilter;
-}
-
-const DEFAULT_MATCH: NonNullable<SheetNameFilter['match']> = 'exact';
-const DEFAULT_CASE_SENSITIVE = false;
-
-/**
- * Prüft, ob ein Sheet-Name zum Filter passt.
- * Defaults: match = 'exact', caseSensitive = false.
- */
-export function matchesSheetName(sheetName: string, filter: SheetNameFilter): boolean {
-  const match = filter.match ?? DEFAULT_MATCH;
-  const caseSensitive = filter.caseSensitive ?? DEFAULT_CASE_SENSITIVE;
-  const name = caseSensitive ? sheetName : sheetName.toLowerCase();
-  const values = filter.values;
-
-  for (const raw of values) {
-    const value = caseSensitive ? raw : raw.toLowerCase();
-    let hit = false;
-    if (match === 'exact') {
-      hit = name === value;
-    } else if (match === 'contains') {
-      hit = name.includes(value);
-    } else if (match === 'regex') {
-      try {
-        const re = new RegExp(value, caseSensitive ? '' : 'i');
-        hit = re.test(sheetName);
-      } catch {
-        hit = false;
-      }
-    }
-    if (hit) return true;
-  }
-  return false;
+  sheetNameFilter?: SheetNameFilterOption;
 }
 
 /**

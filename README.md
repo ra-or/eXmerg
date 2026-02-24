@@ -15,18 +15,23 @@ Lokale Webanwendung zum **Zusammenführen von Excel- und ODS-Dateien**. Mehrere 
 npm install
 ```
 
+**Nach einem `git pull`** empfohlen: erneut `npm install`, damit Abhängigkeiten aktuell sind.
+
 ## Entwicklung
 
-Client und Server parallel starten (Client **3002**, Server **3003**):
+Client und Server parallel starten:
 
 ```bash
 npm run dev
 ```
 
-Im Browser: **http://localhost:3002**
+- **Client (Vite):** [http://localhost:3002](http://localhost:3002)  
+- **Server (Express):** Port **3004** (nur in der Entwicklung; in Produktion/Docker: 3003)
 
-- Der Vite-Dev-Server proxied `/api` an den Backend-Server (Standard: `http://localhost:3003`).
-- **Backend auf anderem Rechner (z. B. Linux-Server):** `VITE_PROXY_TARGET=http://<Server-IP>:3003 npm run dev` – dann laufen Client lokal (Windows) und API auf dem Server.
+Der Vite-Dev-Server proxied alle Anfragen unter `/api` an den Backend-Server. Beim Aufruf von `npm run dev` wird automatisch `VITE_PROXY_TARGET=http://localhost:3004` gesetzt, sodass Client und Server ohne weitere Konfiguration zusammenarbeiten.
+
+**Backend auf anderem Rechner (z. B. Linux-Server):**  
+`VITE_PROXY_TARGET=http://<Server-IP>:3003 npm run dev` – dann läuft der Client lokal (Windows) und die API auf dem Server (z. B. Port 3003).
 
 ## Tests
 
@@ -43,8 +48,8 @@ npm run test:coverage
 # Server-Tests
 npm run test --prefix server
 
-# Alle Tests (Client + Server)
-npm run test && npm run test --prefix server
+# Alle Tests (Client + Server) – ein Befehl
+npm test
 ```
 
 **CI:** Bei Push/PR auf `main` oder `master` laufen Client- und Server-Tests automatisch (GitHub Actions, siehe `.github/workflows/ci.yml`).
@@ -56,7 +61,7 @@ npm run build
 ```
 
 - Baut nacheinander: `shared` → `server` → `client`
-- Client-Build liegt in `client/dist/` und kann statisch (z. B. per Nginx) ausgeliefert werden.
+- Client-Build liegt in `client/dist/` und kann statisch (z. B. per Nginx) ausgeliefert werden.
 
 ## Projektstruktur
 
@@ -64,16 +69,16 @@ npm run build
 eXmerg/
 ├── client/              # React SPA (Vite, Port 3002)
 │   ├── src/
-│   │   ├── api/         # API-Client (Sheets, Merge)
+│   │   ├── api/         # API-Client (Sheets, Merge, Upload)
 │   │   ├── components/  # Upload, FileList, MergeOptions, ActionBar, …
 │   │   ├── store/       # Zustand (Dateien, Merge-Optionen, UI-State)
-│   │   └── utils/       # z. B. Sheet-Selection-Preview
+│   │   └── utils/       # z. B. Sheet-Selection-Preview
 │   └── dist/            # Statischer Build (nach npm run build)
-├── server/              # Express API (Port 3003)
+├── server/              # Express API (Dev: 3004, Prod/Docker: 3003)
 │   └── src/
 │       ├── config/      # Limits, Port, Upload-Pfad
 │       ├── processing/  # Excel/ODS parsen, copySheet, parseOds
-│       ├── routes/      # /api/upload, /api/sheets, /api/merge, …
+│       ├── routes/      # /api/upload-file, /api/sheets, /api/merge, …
 │       ├── services/    # mergeService (collectSheetSources, Merge-Modi)
 │       └── workers/     # Merge-Worker (isoliert, OOM-sicher)
 ├── shared/              # Gemeinsame Types & Utils
@@ -101,19 +106,19 @@ eXmerg/
 | **Zeilenmatrix** | Jede Quelle = eine Zeile, Spalten = Zellreferenzen (A1, B1, …). |
 | **Zeilenmatrix mit Summen** | Wie Zeilenmatrix, plus Gesamt-Zeile mit Spaltensummen. |
 
-Alle Modi verarbeiten **alle Sheets** jeder Datei (nicht nur das erste). Die Reihenfolge der Dateien entspricht der gewählten Sortierung (z. B. Upload-Reihenfolge oder nach Dateiname).
+Alle Modi verarbeiten **alle Sheets** jeder Datei (nicht nur das erste). Die Reihenfolge der Dateien entspricht der gewählten Sortierung (z. B. Upload-Reihenfolge oder nach Dateiname).
 
 ## Sheet-Auswahl & Filter
 
 - **Modus:** „Alle Sheets“ oder „Nur erstes Sheet“ pro Datei.
 - **Pro Datei:** In der Dateiliste können pro Datei einzelne Sheets an- oder abgewählt werden (leer = alle).
 - **Filter nach Namen:** Optional nur bestimmte Sheets einbeziehen oder ausschließen (exact / contains / RegEx, optional case-sensitive).
-- **Live-Vorschau:** Global „X von Y Sheets ausgewählt“ und pro Datei Badge (z. B. 6/7) mit Farbcodierung (grau / blau / grün).
+- **Live-Vorschau:** Global „X von Y Sheets ausgewählt“ und pro Datei Badge (z. B. 6/7) mit Farbcodierung (grau / blau / grün).
 
 ## Ablauf
 
 1. **Dateien:** Drag & Drop oder Auswahl (Validierung Format/Größe).
-2. **Reihenfolge:** Sortierung z. B. nach Upload, Dateiname, Datum.
+2. **Reihenfolge:** Sortierung z. B. nach Upload, Dateiname, Datum.
 3. **Sheets:** Optional pro Datei Sheets auswählen; optional nur erstes Sheet oder Namenfilter.
 4. **Merge-Optionen:** Modus und Ausgabeformat (.xlsx / .ods) wählen.
 5. **Zusammenführen:** Merge starten → Fortschritt → Download der Ergebnisdatei.
@@ -122,9 +127,9 @@ Alle Modi verarbeiten **alle Sheets** jeder Datei (nicht nur das erste). Die Rei
 
 Über Umgebungsvariablen (optional):
 
-- `PORT` – Server-Port (Standard: 3003)
-- `UPLOAD_DIR` – Verzeichnis für Uploads und temporäre Merge-Ergebnisse (Standard: **Projektroot/uploads**, z. B. `/var/www/exmerg/uploads` bei Deployment unter `/var/www/exmerg`)
-- `TEMP_FILE_TTL_SECONDS` – Nach welchem Alter (Sekunden) noch vorhandene Temp-Dateien vom Fallback-Cleanup gelöscht werden (Standard: 3600 = 1 Stunde). Gemergte Dateien werden in der Regel direkt nach erfolgreichem Download gelöscht; dieser Wert betrifft z. B. abgebrochene Downloads oder nicht abgeholte Dateien.
+- `PORT` – Server-Port (Standard: **3003**; in der Entwicklung setzt das Script **3004**)
+- `UPLOAD_DIR` – Verzeichnis für Uploads und temporäre Merge-Ergebnisse (Standard: **Projektroot/uploads**, z. B. `/var/www/exmerg/uploads` bei Deployment unter `/var/www/exmerg`)
+- `TEMP_FILE_TTL_SECONDS` – Nach welchem Alter (Sekunden) noch vorhandene Temp-Dateien vom Fallback-Cleanup gelöscht werden (Standard: 3600 = 1 Stunde). Gemergte Dateien werden in der Regel direkt nach erfolgreichem Download gelöscht; dieser Wert betrifft z. B. abgebrochene Downloads oder nicht abgeholte Dateien.
 - `MAX_FILE_SIZE_BYTES` – Max. Dateigröße pro Datei
 - `MAX_FILES_PER_REQUEST` – Max. Anzahl Dateien pro Request
 
@@ -140,13 +145,13 @@ docker compose up -d
 
 Siehe Abschnitt **Deployment (Docker)** unten für Erstdeploy und Updates.
 
-*(Falls du weiterhin systemd nutzen willst: Der Backend-Service sollte aus Sicherheitsgründen **nicht** als root laufen – z. B. `User=www-data` und `Group=www-data` in der Unit. Das Upload-Verzeichnis muss dann `www-data` gehören.)*
+*(Falls du weiterhin systemd nutzen willst: Der Backend-Service sollte aus Sicherheitsgründen **nicht** als root laufen – z. B. `User=www-data` und `Group=www-data` in der Unit. Das Upload-Verzeichnis muss dann `www-data` gehören.)*
 
-## Deployment (z. B. Nginx)
+## Deployment (z. B. Nginx)
 
 - **Client:** Statische Dateien aus `client/dist/` ausliefern (Root oder Unterpfad).
-- **API:** **Alle** Anfragen unter `/api` an den Node-Server weiterleiten (z. B. Port 3003).  
-  Bei **HTTP 404** und „Antwort ist kein JSON“ leitet der Proxy die Anfrage oft nicht weiter oder nur für einzelne Pfade – dann fehlt z. B. `POST /api/upload-file`.
+- **API:** **Alle** Anfragen unter `/api` an den Node-Server weiterleiten (z. B. Port 3003).  
+  Bei **HTTP 404** und „Antwort ist kein JSON“ leitet der Proxy die Anfrage oft nicht weiter oder nur für einzelne Pfade – dann fehlt z. B. `POST /api/upload-file`.
 
 **Benötigte API-Routen (alles unter `/api`):**
 
@@ -197,10 +202,11 @@ docker compose build
 docker compose up -d
 ```
 
-**Update (nach z. B. git pull):**
+**Update (nach z. B. git pull):**
 
 ```bash
 git pull
+npm install
 docker compose build
 docker compose up -d
 ```
