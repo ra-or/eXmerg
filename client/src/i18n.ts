@@ -290,6 +290,14 @@ export const translations: Record<string, { de: string; en: string }> = {
   'templates.modeLabel.row_per_file': { de: 'Zeilenmatrix mit Summen', en: 'Row matrix with totals' },
   'templates.modeLabel.row_per_file_no_sum': { de: 'Zeilenmatrix', en: 'Row matrix' },
 
+  // Preview
+  'preview.title': { de: 'Merge-Vorschau', en: 'Merge preview' },
+  'preview.loading': { de: 'Lade…', en: 'Loading…' },
+  'preview.rows': { de: 'Zeilen', en: 'rows' },
+  'preview.moreRows': { de: '+ {n} weitere Zeilen', en: '+ {n} more rows' },
+  'preview.noData': { de: 'Keine Daten für Vorschau verfügbar.', en: 'No data available for preview.' },
+  'preview.error': { de: 'Vorschau konnte nicht geladen werden.', en: 'Preview could not be loaded.' },
+
   // Errors / common
   'common.reset': { de: 'Alles zurücksetzen', en: 'Reset all' },
   'common.report': { de: 'Report', en: 'Report' },

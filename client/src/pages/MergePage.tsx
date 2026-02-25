@@ -1,6 +1,7 @@
 import { UploadArea } from '../components/UploadArea';
 import { FileList } from '../components/FileList';
 import { MergeOptionsPanel } from '../components/MergeOptionsPanel';
+import { MergePreview } from '../components/MergePreview';
 import { DownloadHistory } from '../components/DownloadHistory';
 import { ActionBar } from '../components/ActionBar';
 import { StatusBanner } from '../components/StatusBanner';
@@ -144,6 +145,7 @@ export function MergePage() {
         <DuplicateFilesBanner />
         <FileList />
         <MergeOptionsPanel />
+        <MergePreview />
         <DownloadHistory />
       </main>
 

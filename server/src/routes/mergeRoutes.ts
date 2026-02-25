@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { config } from '../config/index.js';
 import { getSheetInfo } from '../services/mergeService.js';
+import { generateMergePreview } from '../services/mergePreview.js';
 import type { MergeOptions, MergeErrorResponse, SheetsResponse, MergeJobResponse, MergeProgressEvent } from 'shared';
 import { isSpreadsheetFile } from 'shared';
 import { validateExtension, validateFileSize, validateTotalSize, getValidationErrorMessage } from 'shared';
@@ -272,6 +273,37 @@ async function cleanupFiles(paths: string[]): Promise<void> {
 router.get('/health', (_req: Request, res: Response) => {
   res.status(200).send('ok');
 });
+
+/** POST /api/merge-preview – Quick preview of merge result (first rows only). */
+router.post(
+  '/merge-preview',
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = req.body as { fileIds?: string[]; fileNames?: string[]; mode?: string };
+    const { fileIds, fileNames, mode } = body;
+
+    if (!fileIds?.length || !mode) {
+      res.status(400).json({ error: 'fileIds and mode are required.' });
+      return;
+    }
+
+    const uploadDir = config.uploadDir;
+    const files: Array<{ path: string; filename: string }> = [];
+    for (let i = 0; i < fileIds.length; i++) {
+      const id = fileIds[i]!;
+      if (id.includes('..') || path.isAbsolute(id)) continue;
+      const filePath = path.join(uploadDir, id);
+      files.push({ path: filePath, filename: fileNames?.[i] ?? id });
+    }
+
+    if (files.length === 0) {
+      res.status(400).json({ error: 'No valid files.' });
+      return;
+    }
+
+    const preview = await generateMergePreview(files, mode as import('shared').MergeMode);
+    res.json(preview);
+  }),
+);
 
 /** POST /api/sheets – Sheet-Namen + Vorschau-Zeilen einer Datei zurückgeben. */
 router.post(
