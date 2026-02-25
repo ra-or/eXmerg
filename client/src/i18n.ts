@@ -13,7 +13,10 @@ export const translations: Record<string, { de: string; en: string }> = {
     de: 'Per Drag & Drop auf die Seite – oder hier auswählen',
     en: 'Drag & drop onto the page – or select here',
   },
-  'upload.supports': { de: 'Unterstützt: .xlsx · .xls · .ods', en: 'Supports: .xlsx · .xls · .ods' },
+  'upload.supports': {
+    de: 'Unterstützt: .xlsx · .xls · .ods · .csv · .tsv',
+    en: 'Supports: .xlsx · .xls · .ods · .csv · .tsv',
+  },
   'upload.dropToAdd': { de: 'Dateien ablegen zum Hochladen', en: 'Drop files to upload' },
   'upload.maxReached': { de: 'Maximale Dateianzahl erreicht', en: 'Maximum number of files reached' },
   'upload.limits': {

@@ -78,7 +78,7 @@ export function UploadArea({ validateAndAdd, full, fileCount }: UploadAreaProps)
         <input
           type="file"
           multiple
-          accept=".xlsx,.xls,.ods"
+          accept=".xlsx,.xls,.ods,.csv,.tsv"
           className="hidden"
           disabled={full}
           onChange={(e) => validateAndAdd(e.target.files)}

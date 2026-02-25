@@ -90,7 +90,7 @@ test.describe('UI Interactions', () => {
   test('file input accepts only spreadsheet formats', async ({ page }) => {
     await page.goto('/');
     const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toHaveAttribute('accept', '.xlsx,.xls,.ods');
+    await expect(fileInput).toHaveAttribute('accept', '.xlsx,.xls,.ods,.csv,.tsv');
   });
 
   test('merge mode selection switches active mode', async ({ page }) => {

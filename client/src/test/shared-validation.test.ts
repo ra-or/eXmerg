@@ -13,10 +13,14 @@ describe('validateExtension', () => {
     expect(validateExtension('d.ods')).toBe(true);
   });
 
+  it('akzeptiert .csv und .tsv', () => {
+    expect(validateExtension('e.csv')).toBe(true);
+    expect(validateExtension('f.tsv')).toBe(true);
+  });
+
   it('lehnt andere Formate ab', () => {
-    expect(validateExtension('e.csv')).toBe(false);
-    expect(validateExtension('f.pdf')).toBe(false);
-    expect(validateExtension('g')).toBe(false);
+    expect(validateExtension('g.pdf')).toBe(false);
+    expect(validateExtension('h')).toBe(false);
   });
 });
 

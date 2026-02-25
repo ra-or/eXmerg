@@ -43,7 +43,7 @@ export function getValidationErrorMessage(
 ): string {
   switch (reason) {
     case 'extension':
-      return 'Invalid file format. Allowed: .xlsx, .xls, .ods';
+      return 'Invalid file format. Allowed: .xlsx, .xls, .ods, .csv, .tsv';
     case 'size':
       return limits
         ? `File too large. Maximum ${formatMb(limits.maxFileSizeBytes)} per file.`

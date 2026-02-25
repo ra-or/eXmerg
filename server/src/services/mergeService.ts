@@ -10,6 +10,7 @@ import {
   matchesSheetName,
 } from 'shared';
 import { parseOdsToWorkbook } from '../processing/parseOdsToWorkbook.js';
+import { parseCsvToWorkbook } from '../processing/parseCsv.js';
 import { copyWorksheet, getRowStyle, prepareValue } from '../processing/copySheet.js';
 
 /** Options accepted by the ExcelJS streaming WorkbookWriter constructor. */
@@ -80,7 +81,7 @@ export async function collectSheetSources(
     const f = files[i]!;
     onProgress?.(Math.round((i / files.length) * 100), `Lade Verzeichnis ${i + 1}/${files.length}: ${f.filename}`);
     const ext = getExtension(f.filename);
-    if (ext !== '.xlsx' && ext !== '.ods' && ext !== '.xls') continue;
+    if (ext !== '.xlsx' && ext !== '.ods' && ext !== '.xls' && ext !== '.csv' && ext !== '.tsv') continue;
     let wb: ExcelJS.Workbook;
     try {
       wb = await loadWorkbook(f);
@@ -164,6 +165,10 @@ async function loadWorkbook(f: FileRef): Promise<ExcelJS.Workbook> {
     const buf = await readFile(f.filePath);
     const wb = await parseOdsToWorkbook(buf);
     return wb;
+  }
+  if (ext === '.csv' || ext === '.tsv') {
+    const buf = await readFile(f.filePath);
+    return parseCsvToWorkbook(buf, { delimiter: ext === '.tsv' ? '\t' : undefined });
   }
   throw new Error(`Nicht unterstütztes Format: ${f.filename}`);
 }
