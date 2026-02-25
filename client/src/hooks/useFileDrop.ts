@@ -3,6 +3,9 @@ import { useStore, type RejectedFile, type UploadErrorReason } from '../store/us
 import { isAllowedFile, DEFAULT_FILE_LIMITS } from 'shared';
 import { HISTORY_DRAG_TYPE } from '../components/DownloadHistory';
 
+/** Drag-Typ für Umsortieren in der Dateiliste – Upload-Bereich zeigt dann kein Overlay. */
+export const REORDER_DRAG_TYPE = 'application/x-exmerg-reorder';
+
 const MAX_SIZE = DEFAULT_FILE_LIMITS.maxFileSizeBytes;
 const MAX_FILES = DEFAULT_FILE_LIMITS.maxFilesPerRequest;
 const MAX_TOTAL_BYTES = DEFAULT_FILE_LIMITS.maxTotalSizeBytes;
@@ -73,6 +76,7 @@ export function useFileDrop() {
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      if (e.dataTransfer.types.includes(REORDER_DRAG_TYPE)) return;
       const historyData = e.dataTransfer.getData(HISTORY_DRAG_TYPE);
       if (historyData) {
         e.preventDefault();
@@ -90,6 +94,7 @@ export function useFileDrop() {
   );
 
   const onDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes(REORDER_DRAG_TYPE)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     setIsDragOver(true);

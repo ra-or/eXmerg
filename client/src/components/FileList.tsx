@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { FileSortOrder } from '../store/useStore';
 import { useStore, sortFileList } from '../store/useStore';
+import { REORDER_DRAG_TYPE } from '../hooks/useFileDrop';
 import { fetchSheets } from '../api/client';
 import { getExtension } from 'shared';
 import { useT } from '../i18n';
@@ -301,6 +302,7 @@ export function FileList() {
   const handleDragStart = (i: number) => (e: React.DragEvent) => {
     dragSrc.current = i;
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(REORDER_DRAG_TYPE, '1');
     e.dataTransfer.setData('text/plain', String(i));
   };
   const handleDragOver = (i: number) => (e: React.DragEvent) => {
@@ -434,6 +436,7 @@ export function FileList() {
       <div
         ref={listParentRef}
         onScroll={hidePreviewOnScroll}
+        onDragOver={isUploadOrder ? (e) => e.preventDefault() : undefined}
         className="min-h-[200px] max-h-[60vh] overflow-auto rounded-lg border border-zinc-200 dark:border-surface-600"
       >
         <div
