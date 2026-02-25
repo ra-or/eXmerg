@@ -22,7 +22,7 @@ describe('MergePage', () => {
   it('zeigt den Zusammenführen-Button (ActionBar)', () => {
     renderMergePage();
     const mergeButtons = screen.getAllByRole('button').filter(
-      (btn) => /^(Zusammenführen|Merge)$/i.test(btn.textContent?.trim() ?? '')
+      (btn) => /(zusammenführen|merge)/i.test(btn.textContent?.trim() ?? '')
     );
     expect(mergeButtons.length).toBeGreaterThanOrEqual(1);
   });

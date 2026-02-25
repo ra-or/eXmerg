@@ -19,7 +19,8 @@ export function sanitizeWorksheetName(name: string): string {
   const trimmed = (name ?? '').trim();
   if (trimmed === '') return FALLBACK_NAME;
   const sanitized = trimmed.replace(FORBIDDEN_CHARS, '_').trim();
-  return sanitized === '' ? FALLBACK_NAME : sanitized;
+  if (sanitized === '' || /^_+$/.test(sanitized)) return FALLBACK_NAME;
+  return sanitized;
 }
 
 /**
