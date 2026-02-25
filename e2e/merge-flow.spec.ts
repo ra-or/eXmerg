@@ -207,6 +207,54 @@ test.describe('Sheet Selection', () => {
   });
 });
 
+test.describe('CSV/TSV Import', () => {
+  const CSV_FILE = path.join(FIXTURES, 'test_data.csv');
+  const TSV_FILE = path.join(FIXTURES, 'test_data.tsv');
+
+  test('upload and merge CSV file with XLSX file', async ({ page }) => {
+    await page.goto('/');
+    const fileInput = page.locator('input[type="file"]');
+
+    await fileInput.setInputFiles(CSV_FILE);
+    await expect(page.getByText('test_data.csv')).toBeVisible();
+
+    await fileInput.setInputFiles(FILE1);
+    await expect(page.getByText('cities_north.xlsx')).toBeVisible();
+
+    await runMerge(page);
+    await expect(page.getByRole('button', { name: /^Herunterladen$|^Download$/i })).toBeVisible();
+  });
+
+  test('upload and merge TSV file', async ({ page }) => {
+    await page.goto('/');
+    const fileInput = page.locator('input[type="file"]');
+
+    await fileInput.setInputFiles(TSV_FILE);
+    await expect(page.getByText('test_data.tsv')).toBeVisible();
+
+    await fileInput.setInputFiles(CSV_FILE);
+    await expect(page.getByText('test_data.csv')).toBeVisible();
+
+    await runMerge(page);
+    await expect(page.getByRole('button', { name: /^Herunterladen$|^Download$/i })).toBeVisible();
+  });
+});
+
+test.describe('File Reordering', () => {
+  test('drag handle is visible in upload order mode', async ({ page }) => {
+    await page.goto('/');
+    await uploadBothFiles(page);
+
+    // Drag handle should appear on hover (has the reorder title)
+    const firstFileRow = page.getByText('cities_north.xlsx').locator('..');
+    await firstFileRow.hover();
+
+    // The drag handle SVG should be in the DOM
+    const dragHandle = page.locator('[title*="Reihenfolge"], [title*="order"]').first();
+    await expect(dragHandle).toBeAttached();
+  });
+});
+
 test.describe('API Health', () => {
   test('backend health endpoint returns ok', async ({ request }) => {
     const response = await request.get('http://localhost:3004/api/health');
