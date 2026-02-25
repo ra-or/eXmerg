@@ -158,6 +158,55 @@ test.describe('Output Format', () => {
   });
 });
 
+test.describe('Theme Toggle', () => {
+  test('dark mode toggle switches theme', async ({ page }) => {
+    await page.goto('/');
+
+    // App starts in dark mode by default (check for dark class on html)
+    const html = page.locator('html');
+    const initialTheme = await html.getAttribute('class');
+
+    // Click the theme toggle button
+    const toggleByTitle = page.locator('button[title*="modus"], button[title*="mode"]');
+    await toggleByTitle.click();
+
+    // Theme class should have changed
+    const newTheme = await html.getAttribute('class');
+    expect(newTheme).not.toBe(initialTheme);
+
+    // Toggle back
+    await toggleByTitle.click();
+    const restoredTheme = await html.getAttribute('class');
+    expect(restoredTheme).toBe(initialTheme);
+  });
+});
+
+test.describe('Sheet Selection', () => {
+  test('sheet selection mode can be switched to first-only', async ({ page }) => {
+    await page.goto('/');
+
+    // Click "Nur erstes Sheet" button
+    const firstSheetBtn = page.getByText(/Nur erstes Sheet|First sheet only/i);
+    await firstSheetBtn.click();
+
+    // Verify it's visually selected (has emerald styling)
+    await expect(firstSheetBtn).toHaveClass(/emerald/);
+  });
+
+  test('merge with first-sheet-only selection works', async ({ page }) => {
+    await page.goto('/');
+    await uploadBothFiles(page);
+
+    // Switch to "Nur erstes Sheet"
+    await page.getByText(/Nur erstes Sheet|First sheet only/i).click();
+
+    // Merge
+    await runMerge(page);
+
+    await expect(page.getByRole('button', { name: /^Herunterladen$|^Download$/i })).toBeVisible();
+  });
+});
+
 test.describe('API Health', () => {
   test('backend health endpoint returns ok', async ({ request }) => {
     const response = await request.get('http://localhost:3004/api/health');
