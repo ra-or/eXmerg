@@ -13,10 +13,14 @@ describe('validateExtension', () => {
     expect(validateExtension('d.ods')).toBe(true);
   });
 
+  it('akzeptiert .csv und .tsv', () => {
+    expect(validateExtension('e.csv')).toBe(true);
+    expect(validateExtension('f.tsv')).toBe(true);
+  });
+
   it('lehnt andere Formate ab', () => {
-    expect(validateExtension('e.csv')).toBe(false);
-    expect(validateExtension('f.pdf')).toBe(false);
-    expect(validateExtension('g')).toBe(false);
+    expect(validateExtension('g.pdf')).toBe(false);
+    expect(validateExtension('h')).toBe(false);
   });
 });
 
@@ -44,11 +48,11 @@ describe('validateTotalSize', () => {
 });
 
 describe('getValidationErrorMessage', () => {
-  it('liefert Meldungen für extension, size, count, totalSize', () => {
-    expect(getValidationErrorMessage('extension')).toContain('Dateiformat');
-    expect(getValidationErrorMessage('size')).toContain('groß');
-    expect(getValidationErrorMessage('count')).toContain('Dateien');
-    expect(getValidationErrorMessage('totalSize')).toContain('Gesamtgröße');
+  it('returns messages for extension, size, count, totalSize', () => {
+    expect(getValidationErrorMessage('extension')).toContain('file format');
+    expect(getValidationErrorMessage('size')).toContain('too large');
+    expect(getValidationErrorMessage('count')).toContain('Too many');
+    expect(getValidationErrorMessage('totalSize')).toContain('size exceeded');
   });
 
   it('kann optionale Limits in der Meldung anzeigen', () => {

@@ -3,13 +3,13 @@ import { useStore } from '../store/useStore';
 import type { MergeMode } from 'shared';
 import { useT } from '../i18n';
 
-const MODE_LABELS: Record<MergeMode, string> = {
-  all_to_one_sheet: 'Alles in 1 Sheet',
-  one_file_per_sheet: '1 Sheet / Datei',
-  all_with_source_column: 'Mit Herkunftsspalte',
-  consolidated_sheets: 'Konsolidierung + Einzelne Sheets',
-  row_per_file: 'Zeilenmatrix mit Summen',
-  row_per_file_no_sum: 'Zeilenmatrix',
+const MODE_KEYS: Record<MergeMode, string> = {
+  all_to_one_sheet: 'templates.modeLabel.all_to_one_sheet',
+  one_file_per_sheet: 'templates.modeLabel.one_file_per_sheet',
+  all_with_source_column: 'templates.modeLabel.all_with_source_column',
+  consolidated_sheets: 'templates.modeLabel.consolidated_sheets',
+  row_per_file: 'templates.modeLabel.row_per_file',
+  row_per_file_no_sum: 'templates.modeLabel.row_per_file_no_sum',
 };
 
 const STORAGE_KEY = 'mergeTemplates';
@@ -124,7 +124,7 @@ export function TemplatesPanel() {
               className="w-full bg-zinc-200 dark:bg-surface-700 border border-zinc-400 dark:border-surface-500 rounded px-2 py-1 text-xs text-zinc-800 dark:text-zinc-200 outline-none focus:border-emerald-500/50"
             />
             <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-1">
-              {currentMode ? MODE_LABELS[currentMode] : '–'} · {outputFormat.toUpperCase()}
+              {currentMode ? t(MODE_KEYS[currentMode]) : '–'} · {outputFormat.toUpperCase()}
             </p>
           </div>
           <button
@@ -150,11 +150,11 @@ export function TemplatesPanel() {
       {/* Template-Liste */}
       {templates.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
-          {templates.map((t) => {
-            const isActive = currentMode === t.mode && outputFormat === t.outputFormat;
+          {templates.map((tpl) => {
+            const isActive = currentMode === tpl.mode && outputFormat === tpl.outputFormat;
             return (
               <li
-                key={t.id}
+                key={tpl.id}
                 className={[
                   'flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs border transition-colors group',
                   isActive
@@ -164,19 +164,19 @@ export function TemplatesPanel() {
               >
                 <button
                   type="button"
-                  onClick={() => handleApply(t)}
+                  onClick={() => handleApply(tpl)}
                   className="truncate max-w-[120px]"
-                  title={`${MODE_LABELS[t.mode]} · ${t.outputFormat.toUpperCase()}`}
+                  title={`${t(MODE_KEYS[tpl.mode])} · ${tpl.outputFormat.toUpperCase()}`}
                 >
-                  {t.name}
+                  {tpl.name}
                 </button>
                 <span className="text-zinc-500 dark:text-zinc-700 shrink-0">·</span>
-                <span className="text-zinc-500 dark:text-zinc-600 shrink-0 text-[10px]">{t.outputFormat}</span>
+                <span className="text-zinc-500 dark:text-zinc-600 shrink-0 text-[10px]">{tpl.outputFormat}</span>
                 <button
                   type="button"
-                  onClick={() => handleDelete(t.id)}
+                  onClick={() => handleDelete(tpl.id)}
                   className="text-zinc-500 dark:text-zinc-700 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
-                  title="Vorlage löschen"
+                  title={t('templates.deleteTitle')}
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

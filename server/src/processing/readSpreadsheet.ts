@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type { SheetSource } from '../services/mergeStrategies.js';
 import { getExtension, isSpreadsheetFile } from 'shared';
 import { parseOdsBuffer } from './parseOds.js';
+import { parseCsvToRows } from './parseCsv.js';
 
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
@@ -109,6 +110,19 @@ export async function readSpreadsheetToSources(
 
   if (ext === '.ods') {
     return readOdsToSources(buffer, filename, selectedSheetIds);
+  }
+
+  if (ext === '.csv' || ext === '.tsv') {
+    const rows = parseCsvToRows(buffer, { delimiter: ext === '.tsv' ? '\t' : undefined });
+    return [
+      {
+        filename,
+        sheetName: 'Daten',
+        sheetIndex: 0,
+        rows: rows.map((r) => r.map(String)),
+        headers: rows[0]?.map(String) ?? [],
+      },
+    ];
   }
 
   if (ext === '.xls') {

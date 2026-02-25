@@ -8,7 +8,7 @@ export interface AppError extends Error {
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
-  return 'Ein unerwarteter Fehler ist aufgetreten.';
+  return 'An unexpected error occurred.';
 }
 
 function getErrorStatus(err: unknown): number {
@@ -31,28 +31,27 @@ function getErrorStack(err: unknown): string | undefined {
   return undefined;
 }
 
-/** Multer-Fehler-Codes → deutsche Meldung + HTTP-Status (Windows/Linux-kompatibel). */
+/** Multer error codes → user-friendly message + HTTP status. */
 function mapMulterError(code: string | undefined, defaultMessage: string): { statusCode: number; message: string } {
   switch (code) {
     case 'LIMIT_FILE_SIZE':
-      return { statusCode: 413, message: 'Datei ist zu groß. Bitte maximale Dateigröße beachten.' };
+      return { statusCode: 413, message: 'File too large. Please check the maximum file size.' };
     case 'LIMIT_FILE_COUNT':
-      return { statusCode: 400, message: 'Zu viele Dateien in einer Anfrage.' };
+      return { statusCode: 400, message: 'Too many files in one request.' };
     case 'LIMIT_UNEXPECTED_FILE':
-      return { statusCode: 400, message: 'Unerwartetes Dateifeld. Bitte Feldname "file" verwenden.' };
+      return { statusCode: 400, message: 'Unexpected file field.' };
     default:
       return { statusCode: 400, message: defaultMessage };
   }
 }
 
 /**
- * Zentrale Error-Middleware: typisierte Fehlerantworten, keine Stack-Traces in Production.
- * Multer-Fehler werden in deutsche Meldungen übersetzt.
- * err wird als unknown behandelt, damit next('string') / next(123) nicht crashen.
+ * Central error middleware: typed error responses, no stack traces in production.
+ * Multer errors are mapped to descriptive messages with error codes.
  */
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   let statusCode = getErrorStatus(err);
-  let message = getErrorMessage(err) || 'Ein unerwarteter Fehler ist aufgetreten.';
+  let message = getErrorMessage(err) || 'An unexpected error occurred.';
   const code = getErrorCode(err);
 
   if (code && (code.startsWith('LIMIT_') || code === 'MULTER_ERROR')) {
@@ -68,6 +67,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   res.status(statusCode).json({
     success: false,
     error: message,
-    ...(isProd ? {} : { stack: getErrorStack(err), code }),
+    ...(code ? { code } : {}),
+    ...(isProd ? {} : { stack: getErrorStack(err) }),
   });
 }

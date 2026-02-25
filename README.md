@@ -1,5 +1,7 @@
 # eXmerg
 
+[![CI](https://github.com/ra-or/eXmerg/actions/workflows/ci.yml/badge.svg)](https://github.com/ra-or/eXmerg/actions/workflows/ci.yml)
+
 Lokale Webanwendung zum **Zusammenführen von Excel- und ODS-Dateien**. Mehrere Tabellendateien können in verschiedenen Modi zu einer Ausgabe zusammengeführt werden – inklusive Formatierung, Konsolidierung und optionaler Sheet-Auswahl bzw. Filterung.
 
 ## Tech-Stack
@@ -7,6 +9,8 @@ Lokale Webanwendung zum **Zusammenführen von Excel- und ODS-Dateien**. Mehrere 
 - **Frontend:** React, TypeScript, Vite, TailwindCSS, Zustand
 - **Backend:** Node.js, Express, TypeScript
 - **Gemeinsam:** Shared-Package mit Types und Utils
+- **Testing:** Vitest, React Testing Library, Playwright (E2E), Supertest
+- **Code-Qualität:** ESLint, Prettier, Husky + lint-staged
 
 ## Setup
 
@@ -35,24 +39,25 @@ Der Vite-Dev-Server proxied alle Anfragen unter `/api` an den Backend-Server. Be
 
 ## Tests
 
-- **Client:** Vitest + React Testing Library (`npm test` / `npm run test:coverage` vom Root).
-- **Server:** Vitest, Node-Umgebung (`npm run test --prefix server`).
+| Befehl | Beschreibung |
+|--------|-------------|
+| `npm test` | Alle Unit-Tests (Client + Server, 84 Tests) |
+| `npm run test:coverage` | Client-Tests mit Coverage |
+| `npm run test:e2e` | Playwright E2E-Tests (11 Tests, benötigt `npx playwright install chromium`) |
+| `npm run test --prefix server` | Nur Server-Tests (20 Tests inkl. Route-Tests) |
 
-```bash
-# Client-Tests (vom Root)
-npm test
+**CI:** Bei Push/PR auf `main`/`master` laufen Lint, Build, Unit-Tests und E2E-Tests automatisch (GitHub Actions).
 
-# Client mit Coverage
-npm run test:coverage
+## Code-Qualität
 
-# Server-Tests
-npm run test --prefix server
+| Befehl | Beschreibung |
+|--------|-------------|
+| `npm run lint` | ESLint ausführen |
+| `npm run lint:fix` | ESLint mit Auto-Fix |
+| `npm run format` | Prettier auf alle Dateien anwenden |
+| `npm run format:check` | Prettier-Konformität prüfen |
 
-# Alle Tests (Client + Server) – ein Befehl
-npm test
-```
-
-**CI:** Bei Push/PR auf `main` oder `master` laufen Client- und Server-Tests automatisch (GitHub Actions, siehe `.github/workflows/ci.yml`).
+Pre-Commit-Hooks (Husky + lint-staged) laufen automatisch bei jedem Commit.
 
 ## Build (Produktion)
 
@@ -85,9 +90,12 @@ eXmerg/
 │   └── src/
 │       ├── types/       # MergeMode, MergeOptions, SheetNameFilter, …
 │       └── utils/
+├── e2e/                 # Playwright E2E-Tests
+│   ├── fixtures/files/  # Test-Excel-Dateien
+│   └── merge-flow.spec.ts
 ├── docs/
 │   └── ARCHITEKTUR.md
-└── package.json         # Workspace-Root, Scripts: dev, build
+└── package.json         # Workspace-Root, Scripts: dev, build, test, lint
 ```
 
 ## Unterstützte Formate

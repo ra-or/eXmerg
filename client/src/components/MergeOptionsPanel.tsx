@@ -356,12 +356,14 @@ export function MergeOptionsPanel() {
       {files.length === 0 && <p className="text-sm text-zinc-500 mb-4">{t('merge.hintNoFiles')}</p>}
 
       {/* ── Ausgabeformat ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4" role="radiogroup" aria-label={t('merge.output')}>
         <span className="text-xs text-zinc-500 shrink-0">{t('merge.output')}</span>
         {(['xlsx', 'ods'] as const).map((fmt) => (
           <button
             key={fmt}
             type="button"
+            role="radio"
+            aria-checked={outputFormat === fmt}
             onClick={() => setOutputFormat(fmt)}
             className={[
               'px-3 py-1 rounded text-xs font-medium border transition-colors',
@@ -379,7 +381,7 @@ export function MergeOptionsPanel() {
       <SheetSelectionSection mergeOptions={mergeOptions} setMergeOptions={setMergeOptions} t={t} />
 
       {/* Merge-Modi */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label={t('merge.title')}>
         {MODES.map((m) => {
           const active = currentMode === m.value;
           const badgeClasses: Record<string, string> = {
@@ -391,6 +393,8 @@ export function MergeOptionsPanel() {
             <button
               key={m.value}
               type="button"
+              role="radio"
+              aria-checked={active}
               onClick={() => setMode(m.value)}
               className={[
                 'w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-all duration-150',

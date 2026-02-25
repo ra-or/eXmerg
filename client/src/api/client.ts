@@ -227,6 +227,21 @@ export async function uploadFilesParallel(
   return results.sort((a, b) => a.idx - b.idx);
 }
 
+/** Fetches a merge preview (first rows only) for the given files and mode. */
+export async function fetchMergePreview(
+  fileIds: string[],
+  fileNames: string[],
+  mode: string,
+): Promise<{ headers: string[]; rows: string[][]; totalSourceRows: number; mode: string }> {
+  const res = await fetch(API_BASE + '/merge-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileIds, fileNames, mode }),
+  });
+  if (!res.ok) throw new Error('Preview failed');
+  return res.json();
+}
+
 /** @deprecated Verlauf wird jetzt client-seitig (localStorage) verwaltet. */
 export async function fetchHistory(): Promise<HistoryEntry[]> {
   return [];

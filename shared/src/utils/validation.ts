@@ -34,8 +34,8 @@ function formatMb(bytes: number): string {
 }
 
 /**
- * User-freundliche Fehlermeldung für Validierung.
- * Mit limits werden die konkreten Grenzwerte in der Meldung angezeigt.
+ * User-friendly validation error message.
+ * With limits, the concrete thresholds are included in the message.
  */
 export function getValidationErrorMessage(
   reason: 'extension' | 'size' | 'count' | 'totalSize',
@@ -43,20 +43,20 @@ export function getValidationErrorMessage(
 ): string {
   switch (reason) {
     case 'extension':
-      return 'Ungültiges Dateiformat. Erlaubt: .xlsx, .xls, .ods';
+      return 'Invalid file format. Allowed: .xlsx, .xls, .ods, .csv, .tsv';
     case 'size':
       return limits
-        ? `Eine Datei ist zu groß. Maximal ${formatMb(limits.maxFileSizeBytes)} pro Datei erlaubt.`
-        : 'Datei ist zu groß. Bitte maximale Dateigröße beachten.';
+        ? `File too large. Maximum ${formatMb(limits.maxFileSizeBytes)} per file.`
+        : 'File too large. Please check the maximum file size.';
     case 'count':
       return limits
-        ? `Zu viele Dateien. Maximal ${limits.maxFilesPerRequest} Dateien pro Merge erlaubt.`
-        : 'Zu viele Dateien. Bitte die maximale Anzahl pro Anfrage beachten.';
+        ? `Too many files. Maximum ${limits.maxFilesPerRequest} files per merge.`
+        : 'Too many files. Please check the maximum number per request.';
     case 'totalSize':
       return limits
-        ? `Gesamtgröße überschritten. Maximal ${formatMb(limits.maxTotalSizeBytes)} für alle Dateien zusammen erlaubt.`
-        : 'Gesamtgröße aller Dateien überschritten.';
+        ? `Total size exceeded. Maximum ${formatMb(limits.maxTotalSizeBytes)} for all files combined.`
+        : 'Total file size exceeded.';
     default:
-      return 'Validierungsfehler.';
+      return 'Validation error.';
   }
 }

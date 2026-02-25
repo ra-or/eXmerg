@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
+import { useT } from '../i18n';
 
 export function DownloadArea() {
   const downloadUrl = useStore((s) => s.downloadUrl);
@@ -8,6 +9,7 @@ export function DownloadArea() {
   const lastMergeHistoryMeta = useStore((s) => s.lastMergeHistoryMeta);
   const reset = useStore((s) => s.reset);
   const { saveMerge, downloadMerge, hasLocalBlob, actionLoading } = useLocalMergeHistory();
+  const t = useT();
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -68,7 +70,7 @@ export function DownloadArea() {
 
         {/* Text + buttons */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-emerald-300">Merge abgeschlossen!</p>
+          <p className="text-sm font-semibold text-emerald-300">{t('download.complete')}</p>
           <p className="text-xs text-zinc-500 mt-0.5 truncate">{downloadFilename}</p>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -85,7 +87,7 @@ export function DownloadArea() {
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                 />
               </svg>
-              {downloading || actionLoading ? '…' : 'Herunterladen'}
+              {downloading || actionLoading ? '…' : t('download.download')}
             </button>
 
             <button type="button" onClick={reset} className="btn-secondary">
@@ -96,7 +98,7 @@ export function DownloadArea() {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              Neu starten
+              {t('download.restart')}
             </button>
           </div>
         </div>

@@ -17,16 +17,18 @@ describe('getExtension', () => {
 });
 
 describe('isSpreadsheetFile / isAllowedFile', () => {
-  it('akzeptiert .xlsx, .xls, .ods', () => {
+  it('akzeptiert .xlsx, .xls, .ods, .csv, .tsv', () => {
     expect(isSpreadsheetFile('a.xlsx')).toBe(true);
     expect(isSpreadsheetFile('b.xls')).toBe(true);
     expect(isSpreadsheetFile('c.ods')).toBe(true);
+    expect(isSpreadsheetFile('d.csv')).toBe(true);
+    expect(isSpreadsheetFile('e.tsv')).toBe(true);
     expect(isAllowedFile('a.xlsx')).toBe(true);
   });
 
   it('lehnt andere Formate ab', () => {
-    expect(isSpreadsheetFile('d.csv')).toBe(false);
-    expect(isAllowedFile('e.pdf')).toBe(false);
+    expect(isSpreadsheetFile('f.pdf')).toBe(false);
+    expect(isAllowedFile('g.pdf')).toBe(false);
   });
 });
 
@@ -35,6 +37,8 @@ describe('ALLOWED_EXTENSIONS', () => {
     expect(ALLOWED_EXTENSIONS).toContain('.xlsx');
     expect(ALLOWED_EXTENSIONS).toContain('.xls');
     expect(ALLOWED_EXTENSIONS).toContain('.ods');
-    expect(ALLOWED_EXTENSIONS).toHaveLength(3);
+    expect(ALLOWED_EXTENSIONS).toContain('.csv');
+    expect(ALLOWED_EXTENSIONS).toContain('.tsv');
+    expect(ALLOWED_EXTENSIONS).toHaveLength(5);
   });
 });

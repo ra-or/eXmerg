@@ -88,9 +88,9 @@ export function StatusBanner({
   onClose,
   fadeAfterMs,
   closable = true,
-  closeLabel = 'Schließen',
-  expandLabel = 'Einblenden',
-  collapseLabel = 'Ausblenden',
+  closeLabel,
+  expandLabel,
+  collapseLabel,
 }: StatusBannerProps) {
   const [fading, setFading] = useState(false);
   const [expanded, setExpanded] = useState(() => {
