@@ -268,6 +268,25 @@ export const translations: Record<string, { de: string; en: string }> = {
     en: 'No templates yet – save current settings via "Save".',
   },
 
+  // Download area
+  'download.complete': { de: 'Merge abgeschlossen!', en: 'Merge complete!' },
+  'download.download': { de: 'Herunterladen', en: 'Download' },
+  'download.restart': { de: 'Neu starten', en: 'Start over' },
+
+  // Action bar titles
+  'action.errorReportTitle': { de: 'Fehlerreport als .txt herunterladen', en: 'Download error report as .txt' },
+  'action.restoreAutoName': { de: 'Auto-Namen wiederherstellen', en: 'Restore auto name' },
+  'action.editFilename': { de: 'Dateinamen bearbeiten', en: 'Edit filename' },
+
+  // Templates
+  'templates.deleteTitle': { de: 'Vorlage löschen', en: 'Delete template' },
+  'templates.modeLabel.all_to_one_sheet': { de: 'Alles in 1 Sheet', en: 'All in 1 sheet' },
+  'templates.modeLabel.one_file_per_sheet': { de: '1 Sheet / Datei', en: '1 sheet / file' },
+  'templates.modeLabel.all_with_source_column': { de: 'Mit Herkunftsspalte', en: 'With source column' },
+  'templates.modeLabel.consolidated_sheets': { de: 'Konsolidierung + Einzelne Sheets', en: 'Consolidation + sheets' },
+  'templates.modeLabel.row_per_file': { de: 'Zeilenmatrix mit Summen', en: 'Row matrix with totals' },
+  'templates.modeLabel.row_per_file_no_sum': { de: 'Zeilenmatrix', en: 'Row matrix' },
+
   // Errors / common
   'common.reset': { de: 'Alles zurücksetzen', en: 'Reset all' },
   'common.report': { de: 'Report', en: 'Report' },

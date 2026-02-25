@@ -479,7 +479,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
               type="button"
               onClick={downloadErrorReport}
               className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-amber-500 hover:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 transition-colors"
-              title="Fehlerreport als .txt herunterladen"
+              title={t('action.errorReportTitle')}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path
@@ -572,7 +572,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
                       type="button"
                       onClick={resetName}
                       className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0"
-                      title="Auto-Namen wiederherstellen"
+                      title={t('action.restoreAutoName')}
                     >
                       <svg
                         className="w-3.5 h-3.5"
@@ -596,7 +596,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
                   onClick={startEditing}
                   disabled={noFiles}
                   className="flex items-center gap-1.5 min-w-0 group disabled:opacity-40"
-                  title="Dateinamen bearbeiten"
+                  title={t('action.editFilename')}
                 >
                   <svg
                     className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 shrink-0"

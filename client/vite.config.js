@@ -22,12 +22,7 @@ var vitestConfig = {
             provider: 'v8',
             reporter: ['text', 'text-summary', 'html'],
             include: ['src/**/*.{ts,tsx}'],
-            exclude: [
-                'src/**/*.{test,spec}.{ts,tsx}',
-                'src/test/**',
-                'src/main.tsx',
-                'src/**/*.d.ts',
-            ],
+            exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/test/**', 'src/main.tsx', 'src/**/*.d.ts'],
         },
     },
 };
