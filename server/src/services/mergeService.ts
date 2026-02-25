@@ -12,6 +12,13 @@ import {
 import { parseOdsToWorkbook } from '../processing/parseOdsToWorkbook.js';
 import { copyWorksheet, getRowStyle, prepareValue } from '../processing/copySheet.js';
 
+/** Options accepted by the ExcelJS streaming WorkbookWriter constructor. */
+interface StreamWriterOptions {
+  filename?: string;
+  useStyles?: boolean;
+  useSharedStrings?: boolean;
+}
+
 /** Pfad zur Warnings-Datei neben der Output-Datei. */
 export function warningsPath(outputFilePath: string): string {
   return outputFilePath + '.warnings.json';
@@ -382,20 +389,23 @@ async function copyFilesToSheets(
 
   if (process.env.EXCEL_STREAM === 'true') {
     // Streaming (kann bei ExcelJS zu ungültiger XLSX führen)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const StreamWb = (ExcelJS as unknown as any).stream?.xlsx?.WorkbookWriter as new (opts: {
-      filename: string;
-      useStyles: boolean;
-      useSharedStrings: boolean;
-    }) => {
-      addWorksheet: (
-        name: string,
-        opts?: { views?: ExcelJS.WorksheetView[] },
-      ) => ExcelJS.Worksheet & { commit: () => Promise<void> };
-      commit: () => Promise<void>;
-    };
+    const StreamWb = (
+      ExcelJS as unknown as {
+        stream?: {
+          xlsx?: {
+            WorkbookWriter: new (opts: StreamWriterOptions) => {
+              addWorksheet: (
+                name: string,
+                opts?: { views?: ExcelJS.WorksheetView[] },
+              ) => ExcelJS.Worksheet & { commit: () => Promise<void> };
+              commit: () => Promise<void>;
+            };
+          };
+        };
+      }
+    ).stream?.xlsx?.WorkbookWriter;
     if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false });
     for (let si = 0; si < sources.length; si++) {
       const source = sources[si]!;
       onProgress?.(
@@ -658,7 +668,7 @@ async function mergeAllToOneSheetFormatted(
       ExcelJS as unknown as {
         stream?: {
           xlsx?: {
-            WorkbookWriter: new (opts: { filename: string; useStyles: boolean; useSharedStrings: boolean }) => {
+            WorkbookWriter: new (opts: StreamWriterOptions) => {
               addWorksheet: (n: string) => StreamWs;
               commit: () => Promise<void>;
             };
@@ -667,7 +677,7 @@ async function mergeAllToOneSheetFormatted(
       }
     ).stream?.xlsx?.WorkbookWriter;
     if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false });
     const destWs = streamWb.addWorksheet('Merged');
     for (const [colNum, width] of colWidthMap) {
       try {
@@ -1076,12 +1086,12 @@ async function copyFilesToSheetsWithSummary(
     const StreamWb = (
       ExcelJS as unknown as {
         stream?: {
-          xlsx?: { WorkbookWriter: new (opts: { useStyles: boolean; useSharedStrings: boolean }) => StreamWbType };
+          xlsx?: { WorkbookWriter: new (opts: StreamWriterOptions) => StreamWbType };
         };
       }
     ).stream?.xlsx?.WorkbookWriter;
     if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false });
     const destSummaryWs = streamWb.addWorksheet(summaryName) as StreamWs;
     await writeSheetToStream(destSummaryWs, summaryWs);
     onProgress?.(50, 'Schreibe Einzel-Sheets…');
@@ -1303,7 +1313,7 @@ async function mergeRowPerFile(
       ExcelJS as unknown as {
         stream?: {
           xlsx?: {
-            WorkbookWriter: new (opts: { useStyles: boolean; useSharedStrings: boolean }) => {
+            WorkbookWriter: new (opts: StreamWriterOptions) => {
               addWorksheet: (n: string) => StreamWs;
               commit: () => Promise<void>;
             };
@@ -1312,7 +1322,7 @@ async function mergeRowPerFile(
       }
     ).stream?.xlsx?.WorkbookWriter;
     if (!StreamWb) throw new Error('ExcelJS streaming writer nicht verfügbar.');
-    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false } as any);
+    const streamWb = new StreamWb({ useStyles: false, useSharedStrings: false });
     const ws = streamWb.addWorksheet('Übersicht');
     ws.getColumn(1).width = 14;
     for (let i = 2; i <= activeCols.length + 1; i++) ws.getColumn(i).width = 11;
