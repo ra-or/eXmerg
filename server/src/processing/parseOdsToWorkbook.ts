@@ -96,8 +96,7 @@ function parseBorderStr(s: string): BorderDef | undefined {
   if (styleStr === 'solid') {
     bStyle = widthPt >= 2.25 ? 'thick' : widthPt >= 1.5 ? 'medium' : 'thin';
   } else if (styleStr === 'dashed') {
-    bStyle = widthPt >= 1.5 ? 'medium' : 'dotted';    
-    widthPt >= 1.5 ? 'mediumDashed' : 'dashed';
+    bStyle = widthPt >= 1.5 ? 'mediumDashed' : 'dashed';
   } else if (styleStr === 'dotted') {
     bStyle = 'dotted';
   } else if (styleStr === 'double') {
@@ -443,7 +442,8 @@ function resolveInheritance(map: StyleMap): void {
       if (!def.backgroundColor && parent.backgroundColor) def.backgroundColor = parent.backgroundColor;
       if (def.fontBold === undefined && parent.fontBold !== undefined) def.fontBold = parent.fontBold;
       if (def.fontItalic === undefined && parent.fontItalic !== undefined) def.fontItalic = parent.fontItalic;
-      if (def.fontUnderline === undefined && parent.fontUnderline !== undefined) def.fontUnderline = parent.fontUnderline;
+      if (def.fontUnderline === undefined && parent.fontUnderline !== undefined)
+        def.fontUnderline = parent.fontUnderline;
       if (!def.fontColor && parent.fontColor) def.fontColor = parent.fontColor;
       if (!def.fontSize && parent.fontSize) def.fontSize = parent.fontSize;
       if (!def.fontName && parent.fontName) def.fontName = parent.fontName;
@@ -562,7 +562,11 @@ function buildWorkbookFromOds(contentXml: string, styleMap: StyleMap): ExcelJS.W
       if (def) {
         const exStyle = cellDefToExcelStyle(def);
         if (Object.keys(exStyle).length > 0) {
-          try { cell.style = exStyle as ExcelJS.Style; } catch { /* ignore */ }
+          try {
+            cell.style = exStyle as ExcelJS.Style;
+          } catch {
+            /* ignore */
+          }
         }
       }
     }
@@ -667,7 +671,9 @@ function buildWorkbookFromOds(contentXml: string, styleMap: StyleMap): ExcelJS.W
               if (m.colSpan > 1 || m.rowSpan > 1) {
                 try {
                   ws.mergeCells(m.row, m.col, m.row + m.rowSpan - 1, m.col + m.colSpan - 1);
-                } catch { /* ignore */ }
+                } catch {
+                  /* ignore */
+                }
               }
             }
           }
@@ -734,7 +740,11 @@ function applyColWidths(ws: ExcelJS.Worksheet, colDefs: ColDef[], styleMap: Styl
       if (def.styleName) {
         const w = styleMap.colWidths.get(def.styleName);
         if (w !== undefined && w > 0) {
-          try { ws.getColumn(colIdx).width = w; } catch { /* ignore */ }
+          try {
+            ws.getColumn(colIdx).width = w;
+          } catch {
+            /* ignore */
+          }
         }
       }
       colIdx++;

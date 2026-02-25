@@ -16,30 +16,30 @@ export interface ActionBarProps {
 
 export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
   const t = useT();
-  const files            = useStore((s) => s.files);
-  const selectedFileIds  = useStore((s) => s.selectedFileIds);
-  const fileSortOrder    = useStore((s) => s.fileSortOrder);
-  const mergeOptions     = useStore((s) => s.mergeOptions);
-  const outputFormat     = useStore((s) => s.outputFormat);
-  const outputFilename   = useStore((s) => s.outputFilename);
+  const files = useStore((s) => s.files);
+  const selectedFileIds = useStore((s) => s.selectedFileIds);
+  const fileSortOrder = useStore((s) => s.fileSortOrder);
+  const mergeOptions = useStore((s) => s.mergeOptions);
+  const outputFormat = useStore((s) => s.outputFormat);
+  const outputFilename = useStore((s) => s.outputFilename);
   const isCustomFilename = useStore((s) => s.isCustomFilename);
   const setOutputFilename = useStore((s) => s.setOutputFilename);
-  const setProcessing    = useStore((s) => s.setProcessing);
-  const setMergeError    = useStore((s) => s.setMergeError);
+  const setProcessing = useStore((s) => s.setProcessing);
+  const setMergeError = useStore((s) => s.setMergeError);
   const setMergeWarnings = useStore((s) => s.setMergeWarnings);
-  const setDownload      = useStore((s) => s.setDownload);
+  const setDownload = useStore((s) => s.setDownload);
   const setLastMergeHistoryMeta = useStore((s) => s.setLastMergeHistoryMeta);
   const setUploadProgress = useStore((s) => s.setUploadProgress);
-  const clearResult      = useStore((s) => s.clearResult);
-  const isProcessing     = useStore((s) => s.isProcessing);
-  const mergeError       = useStore((s) => s.mergeError);
-  const mergeWarnings    = useStore((s) => s.mergeWarnings);
-  const downloadUrl      = useStore((s) => s.downloadUrl);
+  const clearResult = useStore((s) => s.clearResult);
+  const isProcessing = useStore((s) => s.isProcessing);
+  const mergeError = useStore((s) => s.mergeError);
+  const mergeWarnings = useStore((s) => s.mergeWarnings);
+  const downloadUrl = useStore((s) => s.downloadUrl);
   const downloadFilename = useStore((s) => s.downloadFilename);
   const lastMergeHistoryMeta = useStore((s) => s.lastMergeHistoryMeta);
-  const bumpHistory      = useStore((s) => s.bumpHistory);
+  const bumpHistory = useStore((s) => s.bumpHistory);
   const bumpLocalMergeVersion = useStore((s) => s.bumpLocalMergeVersion);
-  const reset            = useStore((s) => s.reset);
+  const reset = useStore((s) => s.reset);
   const { saveMerge, downloadMerge, hasLocalBlob, actionLoading } = useLocalMergeHistory();
   const [downloadBarLoading, setDownloadBarLoading] = useState(false);
   const [downloadButtonUsed, setDownloadButtonUsed] = useState(false);
@@ -48,7 +48,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
   const successBannerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput]     = useState('');
+  const [nameInput, setNameInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ── Upload-Fortschritt ────────────────────────────────────────────────────
@@ -59,17 +59,17 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
 
   // ── SSE-Fortschritt ───────────────────────────────────────────────────────
   const [sseProgress, setSseProgress] = useState(0);
-  const [sseMsg, setSseMsg]           = useState('');
-  const [queuePos, setQueuePos]       = useState<number | null>(null);
+  const [sseMsg, setSseMsg] = useState('');
+  const [queuePos, setQueuePos] = useState<number | null>(null);
   const [longRunning, setLongRunning] = useState(false);
   const longRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sseCleanupRef   = useRef<(() => void) | null>(null);
-  const mergeIdRef      = useRef<string | null>(null);
+  const sseCleanupRef = useRef<(() => void) | null>(null);
+  const mergeIdRef = useRef<string | null>(null);
 
   // ── Estimations-Timer (Fallback wenn SSE keine pct liefert) ─────────────
-  const estTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const estStartRef  = useRef(0);
-  const estTotalRef  = useRef(0);
+  const estTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const estStartRef = useRef(0);
+  const estTotalRef = useRef(0);
 
   const startEstimation = useCallback(() => {
     const totalMB = files.reduce((s, f) => s + (f.size ?? 0), 0) / 1024 / 1024;
@@ -84,19 +84,28 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
   }, [files]);
 
   const stopEstimation = useCallback(() => {
-    if (estTimerRef.current) { clearInterval(estTimerRef.current); estTimerRef.current = null; }
+    if (estTimerRef.current) {
+      clearInterval(estTimerRef.current);
+      estTimerRef.current = null;
+    }
   }, []);
 
   const clearLongRunTimer = () => {
-    if (longRunTimerRef.current) { clearTimeout(longRunTimerRef.current); longRunTimerRef.current = null; }
+    if (longRunTimerRef.current) {
+      clearTimeout(longRunTimerRef.current);
+      longRunTimerRef.current = null;
+    }
   };
 
   // Cleanup bei Unmount
-  useEffect(() => () => {
-    sseCleanupRef.current?.();
-    clearLongRunTimer();
-    stopEstimation();
-  }, [stopEstimation]);
+  useEffect(
+    () => () => {
+      sseCleanupRef.current?.();
+      clearLongRunTimer();
+      stopEstimation();
+    },
+    [stopEstimation],
+  );
 
   useEffect(() => {
     if (editingName && inputRef.current) {
@@ -116,13 +125,19 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
   }, [downloadUrl, downloadFilename]);
 
   // Timeouts für Erfolgs-Banner-Fade aufräumen
-  useEffect(() => () => {
-    successBannerTimeoutsRef.current.forEach((id) => clearTimeout(id));
-    successBannerTimeoutsRef.current = [];
-  }, []);
+  useEffect(
+    () => () => {
+      successBannerTimeoutsRef.current.forEach((id) => clearTimeout(id));
+      successBannerTimeoutsRef.current = [];
+    },
+    [],
+  );
 
-  const startEditing = () => { setNameInput(outputFilename); setEditingName(true); };
-  const commitName   = () => {
+  const startEditing = () => {
+    setNameInput(outputFilename);
+    setEditingName(true);
+  };
+  const commitName = () => {
     const t = nameInput.trim();
     if (t) setOutputFilename(t, true);
     setEditingName(false);
@@ -132,10 +147,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
     setEditingName(false);
   };
 
-  const getEffectiveOptions = useCallback(
-    () => ({ ...mergeOptions, outputFormat }),
-    [mergeOptions, outputFormat]
-  );
+  const getEffectiveOptions = useCallback(() => ({ ...mergeOptions, outputFormat }), [mergeOptions, outputFormat]);
 
   const handleCancelMerge = useCallback(async () => {
     const id = mergeIdRef.current;
@@ -173,7 +185,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
       setUploadPhase('uploading');
       setUploadProgress(0);
 
-      const toUpload  = filesToMerge
+      const toUpload = filesToMerge
         .map((f, i) => ({ item: f, i }))
         .filter(({ item }) => !item.preUploadedId && item.file);
 
@@ -196,7 +208,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
       // fileId-Map: Upload-Index (Reihenfolge in filesToMerge) → fileId
       const fileIdMap = new Map(uploadResults.map(({ idx, fileId }) => [idx, fileId]));
 
-      const fileIds:   string[] = [];
+      const fileIds: string[] = [];
       const fileNames: string[] = [];
       for (const item of filesToMerge) {
         if (item.preUploadedId) {
@@ -235,9 +247,10 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
             setLongRunning(false);
 
             // Dateinamen-Extension korrekt setzen
-            const nameWithExt = outputFormat === 'ods'
-              ? outputFilename.replace(/\.xlsx$/i, '.ods')
-              : outputFilename.replace(/\.ods$/i, '.xlsx');
+            const nameWithExt =
+              outputFormat === 'ods'
+                ? outputFilename.replace(/\.xlsx$/i, '.ods')
+                : outputFilename.replace(/\.ods$/i, '.xlsx');
             const url = new URL(dlUrl, window.location.origin);
             url.searchParams.set('name', nameWithExt);
             setDownload(url.pathname + url.search, nameWithExt);
@@ -320,17 +333,20 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'merge-fehlerreport.txt'; a.click();
+    a.href = url;
+    a.download = 'merge-fehlerreport.txt';
+    a.click();
     URL.revokeObjectURL(url);
   };
 
-  const filesToMerge = selectedFileIds.length > 0
-    ? sortFileList(files, fileSortOrder).filter((f) => selectedFileIds.includes(f.id))
-    : sortFileList(files, fileSortOrder);
-  const noFiles   = files.length === 0;
+  const filesToMerge =
+    selectedFileIds.length > 0
+      ? sortFileList(files, fileSortOrder).filter((f) => selectedFileIds.includes(f.id))
+      : sortFileList(files, fileSortOrder);
+  const noFiles = files.length === 0;
   const hasResult = !!downloadUrl && !!downloadFilename;
   const mergeCount = filesToMerge.length;
-  const ext       = outputFormat === 'ods' ? '.ods' : '.xlsx';
+  const ext = outputFormat === 'ods' ? '.ods' : '.xlsx';
   const displayBasename = outputFilename.replace(/\.(xlsx|ods)$/i, '');
 
   const handleDownloadWithSave = useCallback(async () => {
@@ -375,7 +391,7 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
     if (!isProcessing) return hasResult ? t('action.mergeAgain') : t('action.merge');
     if (uploadPhase === 'uploading') {
       const done = uploadedCount;
-      const total = filesToMerge.filter(f => !f.preUploadedId && f.file).length;
+      const total = filesToMerge.filter((f) => !f.preUploadedId && f.file).length;
       return `${t('action.uploadProgress')} (${done}/${total}) – ${Math.round(uploadAggregate)}%`;
     }
     if (queuePos !== null) return t('action.queue', { n: queuePos });
@@ -384,7 +400,6 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
 
   return (
     <div className="w-full">
-
       {/* ── Long-Running-Banner ──────────────────────────────────────── */}
       {longRunning && isProcessing && (
         <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
@@ -393,7 +408,9 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="flex-1">{t('action.longRunning')} {sseMsg && `[${sseMsg}]`}</span>
+            <span className="flex-1">
+              {t('action.longRunning')} {sseMsg && `[${sseMsg}]`}
+            </span>
           </div>
         </div>
       )}
@@ -402,17 +419,25 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
       {mergeError && (
         <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
           <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 animate-slide-up">
-            <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <svg
+              className="w-3.5 h-3.5 shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
             <div className="flex-1 min-w-0">
               <p className="truncate">{mergeError}</p>
               {(mergeError.includes('Arbeitsspeicher') || mergeError.includes('Nicht genug')) && (
                 <p className="mt-1 text-amber-400/90">{t('error.hintOom')}</p>
               )}
-              {mergeError.includes('Timeout') && (
-                <p className="mt-1 text-amber-400/90">{t('error.hintTimeout')}</p>
-              )}
+              {mergeError.includes('Timeout') && <p className="mt-1 text-amber-400/90">{t('error.hintTimeout')}</p>}
             </div>
             <button onClick={() => setMergeError(null)} className="text-red-500 hover:text-red-300 shrink-0">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -427,13 +452,27 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
       {mergeWarnings.length > 0 && (
         <div className="max-w-5xl mx-auto px-4 md:px-6 pb-1">
           <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-400 animate-slide-up">
-            <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <svg
+              className="w-3.5 h-3.5 mt-0.5 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
             <div className="flex-1 min-w-0">
               <p className="font-medium mb-0.5">{t('warnings.filesFailed', { n: mergeWarnings.length })}</p>
               <ul className="space-y-0.5">
-                {mergeWarnings.map((w, i) => <li key={i} className="truncate opacity-80">{w}</li>)}
+                {mergeWarnings.map((w, i) => (
+                  <li key={i} className="truncate opacity-80">
+                    {w}
+                  </li>
+                ))}
               </ul>
             </div>
             <button
@@ -443,7 +482,11 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
               title="Fehlerreport als .txt herunterladen"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
               </svg>
               <span className="hidden sm:inline text-xs">{t('common.report')}</span>
             </button>
@@ -470,7 +513,13 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
               ].join(' ')}
             >
               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
-                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg
+                  className="w-3.5 h-3.5 text-emerald-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
@@ -499,10 +548,8 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
       {/* ── Haupt-Leiste (Hintergrund/Border kommt vom MergePage-Sticky-Wrapper) ─ */}
       <div>
         <div className="max-w-5xl mx-auto">
-
           {/* Mobile: 2-Zeilen-Layout */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-
             {/* Zeile 1 (mobile) / Links (desktop): Dateiname */}
             <div className="flex items-center gap-1.5 min-w-0 flex-1 order-2 sm:order-1">
               {editingName ? (
@@ -512,15 +559,33 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
                     type="text"
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') setEditingName(false); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitName();
+                      if (e.key === 'Escape') setEditingName(false);
+                    }}
                     onBlur={commitName}
                     className="flex-1 min-w-0 bg-zinc-200 dark:bg-surface-700 border border-emerald-500/40 rounded px-2 py-1 text-xs text-zinc-800 dark:text-zinc-200 outline-none focus:border-emerald-500/70"
                     placeholder={t('action.filenamePlaceholder', { ext })}
                   />
                   {isCustomFilename && (
-                    <button type="button" onClick={resetName} className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0" title="Auto-Namen wiederherstellen">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <button
+                      type="button"
+                      onClick={resetName}
+                      className="text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 shrink-0"
+                      title="Auto-Namen wiederherstellen"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
                       </svg>
                     </button>
                   )}
@@ -533,15 +598,40 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
                   className="flex items-center gap-1.5 min-w-0 group disabled:opacity-40"
                   title="Dateinamen bearbeiten"
                 >
-                  <svg className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg
+                    className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                   <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[160px] sm:max-w-xs group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors">
-                    {displayBasename}<span className="text-zinc-500 dark:text-zinc-600">{ext}</span>
+                    {displayBasename}
+                    <span className="text-zinc-500 dark:text-zinc-600">{ext}</span>
                   </span>
-                  {!isCustomFilename && <span className="text-xs text-zinc-500 dark:text-zinc-700 shrink-0 hidden sm:inline">{t('action.auto')}</span>}
-                  <svg className="w-3 h-3 text-zinc-500 dark:text-zinc-700 group-hover:text-zinc-600 dark:group-hover:text-zinc-400 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  {!isCustomFilename && (
+                    <span className="text-xs text-zinc-500 dark:text-zinc-700 shrink-0 hidden sm:inline">
+                      {t('action.auto')}
+                    </span>
+                  )}
+                  <svg
+                    className="w-3 h-3 text-zinc-500 dark:text-zinc-700 group-hover:text-zinc-600 dark:group-hover:text-zinc-400 shrink-0 transition-colors"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                    />
                   </svg>
                 </button>
               )}
@@ -551,7 +641,6 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
 
             {/* Zeile 0 (mobile) / Rechts (desktop): Buttons – Download links, damit Neu mergen nicht springt */}
             <div className="flex items-center gap-2 order-1 sm:order-2">
-
               {/* Herunterladen (nur bei Ergebnis – links vom Neu-mergen-Button) */}
               {hasResult ? (
                 <button
@@ -573,10 +662,22 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
                   className={[
                     'btn-primary py-2.5 px-4 sm:px-5 text-sm font-bold tracking-wide shrink-0 ring-2 ring-emerald-400 ring-offset-2 ring-offset-white dark:ring-offset-surface-900 shadow-lg shadow-emerald-500/25',
                     !downloadButtonUsed ? 'btn-download-glow' : '',
-                  ].filter(Boolean).join(' ')}
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
-                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <svg
+                    className="w-4 h-4 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
                   </svg>
                   <span>{downloadBarLoading || actionLoading ? '…' : t('action.download')}</span>
                 </button>
@@ -590,20 +691,37 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
                 type="button"
                 onClick={handleMerge}
                 disabled={noFiles || isProcessing}
-                className={['btn-primary py-2.5 px-4 sm:px-6 text-sm font-bold tracking-wide shrink-0 flex-1 sm:flex-none', hasResult ? 'ring-2 ring-emerald-500/20' : ''].join(' ')}
+                className={[
+                  'btn-primary py-2.5 px-4 sm:px-6 text-sm font-bold tracking-wide shrink-0 flex-1 sm:flex-none',
+                  hasResult ? 'ring-2 ring-emerald-500/20' : '',
+                ].join(' ')}
               >
                 {isProcessing ? (
                   <>
                     <svg className="w-4 h-4 animate-spin-slow shrink-0" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
                     </svg>
                     <span className="truncate max-w-[200px]">{buttonLabel}</span>
                   </>
                 ) : (
                   <>
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    <svg
+                      className="w-4 h-4 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                      />
                     </svg>
                     <span>
                       {hasResult
@@ -630,7 +748,11 @@ export function ActionBar({ embedded: _embedded }: ActionBarProps = {}) {
               {/* Reset */}
               <button type="button" onClick={reset} className="btn-secondary py-2 shrink-0" title={t('common.reset')}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
               </button>
             </div>

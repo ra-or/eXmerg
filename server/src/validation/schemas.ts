@@ -34,14 +34,19 @@ export type MergeOptionsInput = z.infer<typeof mergeOptionsSchema>;
 
 /** Schema für Download-Query (GET /api/download). */
 export const downloadQuerySchema = z.object({
-  id: z.string().min(1).refine((v) => !v.includes('..') && !path.isAbsolute(v), {
-    message: 'Parameter id ungültig.',
-  }),
+  id: z
+    .string()
+    .min(1)
+    .refine((v) => !v.includes('..') && !path.isAbsolute(v), {
+      message: 'Parameter id ungültig.',
+    }),
   name: z.string().optional(),
-  subdir: z.string().optional().refine(
-    (v) => v === undefined || (!v.includes('..') && !path.isAbsolute(v)),
-    { message: 'Parameter subdir ungültig.' }
-  ),
+  subdir: z
+    .string()
+    .optional()
+    .refine((v) => v === undefined || (!v.includes('..') && !path.isAbsolute(v)), {
+      message: 'Parameter subdir ungültig.',
+    }),
   fmt: z.string().optional(),
 });
 

@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 /** Vitest-Block nur für Tests; wird beim Production-Build von Vite ignoriert. */
 const vitestConfig = {
@@ -12,15 +12,10 @@ const vitestConfig = {
       provider: 'v8' as const,
       reporter: ['text', 'text-summary', 'html'],
       include: ['src/**/*.{ts,tsx}'],
-      exclude: [
-        'src/**/*.{test,spec}.{ts,tsx}',
-        'src/test/**',
-        'src/main.tsx',
-        'src/**/*.d.ts',
-      ],
+      exclude: ['src/**/*.{test,spec}.{ts,tsx}', 'src/test/**', 'src/main.tsx', 'src/**/*.d.ts'],
     },
   },
-}
+};
 
 export default defineConfig({
   plugins: [react()],
@@ -48,4 +43,4 @@ export default defineConfig({
   },
 
   ...(process.env.VITEST === 'true' ? vitestConfig : {}),
-})
+});

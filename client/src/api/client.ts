@@ -1,6 +1,10 @@
 import type {
-  MergeApiResponse, MergeJobResponse, MergeOptions,
-  SheetsResponse, HistoryEntry, MergeProgressEvent,
+  MergeApiResponse,
+  MergeJobResponse,
+  MergeOptions,
+  SheetsResponse,
+  HistoryEntry,
+  MergeProgressEvent,
 } from 'shared';
 
 const API_BASE = '/api';
@@ -73,10 +77,7 @@ export async function fetchSheets(file: File): Promise<SheetsResponse> {
  * Lädt eine einzelne Datei per XHR hoch (für sequenziellen Chunk-Upload).
  * Gibt die server-seitige fileId zurück.
  */
-export function uploadFileToServer(
-  file: File,
-  onProgress: (pct: number) => void,
-): Promise<string> {
+export function uploadFileToServer(file: File, onProgress: (pct: number) => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append('file', file);
@@ -85,7 +86,7 @@ export function uploadFileToServer(
     xhr.open('POST', API_BASE + '/upload-file');
 
     xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100));
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     });
     xhr.upload.addEventListener('load', () => onProgress(100));
 
@@ -94,12 +95,11 @@ export function uploadFileToServer(
       try {
         data = JSON.parse(xhr.responseText) as { fileId?: string; error?: string };
       } catch {
-        const hint = xhr.status >= 400
-          ? ` (HTTP ${xhr.status})`
-          : '';
-        const excerpt = typeof xhr.responseText === 'string' && xhr.responseText.length > 0
-          ? ' – Antwort ist kein JSON.'
-          : ' – Server antwortet leer oder nicht mit JSON.';
+        const hint = xhr.status >= 400 ? ` (HTTP ${xhr.status})` : '';
+        const excerpt =
+          typeof xhr.responseText === 'string' && xhr.responseText.length > 0
+            ? ' – Antwort ist kein JSON.'
+            : ' – Server antwortet leer oder nicht mit JSON.';
         reject(new Error('Upload fehlgeschlagen.' + hint + excerpt));
         return;
       }
@@ -150,7 +150,7 @@ export async function startMerge(
 export async function cancelMerge(mergeId: string): Promise<void> {
   const res = await fetch(`/api/merge/${encodeURIComponent(mergeId)}/cancel`, { method: 'DELETE' });
   if (!res.ok) {
-    const data = await res.json().catch(() => ({})) as { error?: string };
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(data.error || 'Abbrechen fehlgeschlagen.');
   }
 }
@@ -174,8 +174,12 @@ export function subscribeToMergeProgress(
     try {
       const data = JSON.parse(event.data as string) as MergeProgressEvent;
       switch (data.type) {
-        case 'queued':   handlers.onQueued?.(data.position); break;
-        case 'progress': handlers.onProgress?.(data.pct, data.msg); break;
+        case 'queued':
+          handlers.onQueued?.(data.position);
+          break;
+        case 'progress':
+          handlers.onProgress?.(data.pct, data.msg);
+          break;
         case 'complete':
           handlers.onComplete(data.downloadUrl, data.filename, data.warnings);
           es.close();
@@ -185,7 +189,9 @@ export function subscribeToMergeProgress(
           es.close();
           break;
       }
-    } catch { /* parse error ignorieren */ }
+    } catch {
+      /* parse error ignorieren */
+    }
   };
 
   es.onerror = () => {

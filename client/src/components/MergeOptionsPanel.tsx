@@ -1,11 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore, sortFileList } from '../store/useStore';
 import type { MergeMode, SheetNameFilterOption, SheetSelectionMode } from 'shared';
-import {
-  sanitizeWorksheetName,
-  truncateWorksheetName,
-  ensureUniqueWorksheetName,
-} from 'shared';
+import { sanitizeWorksheetName, truncateWorksheetName, ensureUniqueWorksheetName } from 'shared';
 import { useT } from '../i18n';
 
 const MODES: {
@@ -229,7 +225,13 @@ function SheetSelectionSection({
                           : 'bg-zinc-200 dark:bg-surface-700 border-zinc-400 dark:border-surface-500 text-zinc-600 dark:text-zinc-400',
                       ].join(' ')}
                     >
-                      {t(m === 'exact' ? 'merge.sheetFilterExact' : m === 'contains' ? 'merge.sheetFilterContains' : 'merge.sheetFilterRegex')}
+                      {t(
+                        m === 'exact'
+                          ? 'merge.sheetFilterExact'
+                          : m === 'contains'
+                            ? 'merge.sheetFilterContains'
+                            : 'merge.sheetFilterRegex',
+                      )}
                     </button>
                   ))}
                 </div>
@@ -260,13 +262,13 @@ function SheetSelectionSection({
 
 export function MergeOptionsPanel() {
   const t = useT();
-  const mergeOptions    = useStore((s) => s.mergeOptions);
+  const mergeOptions = useStore((s) => s.mergeOptions);
   const setMergeOptions = useStore((s) => s.setMergeOptions);
-  const outputFormat    = useStore((s) => s.outputFormat);
+  const outputFormat = useStore((s) => s.outputFormat);
   const setOutputFormat = useStore((s) => s.setOutputFormat);
-  const files           = useStore((s) => s.files);
-  const fileSortOrder   = useStore((s) => s.fileSortOrder);
-  const sheetInfo       = useStore((s) => s.sheetInfo);
+  const files = useStore((s) => s.files);
+  const fileSortOrder = useStore((s) => s.fileSortOrder);
+  const sheetInfo = useStore((s) => s.sheetInfo);
 
   const [customNamesOpen, setCustomNamesOpen] = useState(false);
 
@@ -274,7 +276,13 @@ export function MergeOptionsPanel() {
   const sortedFiles = sortFileList(files, fileSortOrder);
   const showCustomSheetNames = currentMode === 'one_file_per_sheet' || currentMode === 'consolidated_sheets';
 
-  type MergeOrderRow = { file: typeof sortedFiles[number]; sheetId: string; sheetName: string; fileBaseName: string; sheetCount: number };
+  type MergeOrderRow = {
+    file: (typeof sortedFiles)[number];
+    sheetId: string;
+    sheetName: string;
+    fileBaseName: string;
+    sheetCount: number;
+  };
 
   /** Reihen in Merge-Reihenfolge (eine Zeile = ein Sheet in der Ausgabedatei). */
   const mergeOrderRows = useMemo((): MergeOrderRow[] => {
@@ -303,10 +311,7 @@ export function MergeOptionsPanel() {
       const defaultRaw = row.sheetCount > 1 ? `${row.fileBaseName} – ${row.sheetName}` : row.fileBaseName;
       const rawInput = byFile[row.sheetId]?.trim() ?? '';
       const raw = rawInput !== '' ? rawInput : defaultRaw;
-      const effective = ensureUniqueWorksheetName(
-        truncateWorksheetName(sanitizeWorksheetName(raw)),
-        used,
-      );
+      const effective = ensureUniqueWorksheetName(truncateWorksheetName(sanitizeWorksheetName(raw)), used);
       used.add(effective);
       effectiveNames.set(`${row.file.filename}\t${row.sheetId}`, effective);
     }
@@ -323,9 +328,9 @@ export function MergeOptionsPanel() {
       '01': (i) => String(i + 1).padStart(2, '0'),
       '001': (i) => String(i + 1).padStart(3, '0'),
       '1': (i) => String(i + 1),
-      'sheet': (i) => `Sheet ${i + 1}`,
-      'tab': (i) => `Tab ${String(i + 1).padStart(2, '0')}`,
-      'data': (i) => `Data ${String(i + 1).padStart(2, '0')}`,
+      sheet: (i) => `Sheet ${i + 1}`,
+      tab: (i) => `Tab ${String(i + 1).padStart(2, '0')}`,
+      data: (i) => `Data ${String(i + 1).padStart(2, '0')}`,
     };
     const fn = patterns[patternId];
     if (!fn) return;
@@ -348,9 +353,7 @@ export function MergeOptionsPanel() {
         {t('merge.title')}
       </h2>
 
-      {files.length === 0 && (
-        <p className="text-sm text-zinc-500 mb-4">{t('merge.hintNoFiles')}</p>
-      )}
+      {files.length === 0 && <p className="text-sm text-zinc-500 mb-4">{t('merge.hintNoFiles')}</p>}
 
       {/* ── Ausgabeformat ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 mb-4">
@@ -377,68 +380,80 @@ export function MergeOptionsPanel() {
 
       {/* Merge-Modi */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {MODES.map((m) => {
-            const active = currentMode === m.value;
-            const badgeClasses: Record<string, string> = {
-              green: 'bg-emerald-500/20 text-emerald-400',
-              sky:   'bg-sky-500/15 text-sky-400',
-              amber: 'bg-amber-500/15 text-amber-400',
-            };
-            return (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => setMode(m.value)}
+        {MODES.map((m) => {
+          const active = currentMode === m.value;
+          const badgeClasses: Record<string, string> = {
+            green: 'bg-emerald-500/20 text-emerald-400',
+            sky: 'bg-sky-500/15 text-sky-400',
+            amber: 'bg-amber-500/15 text-amber-400',
+          };
+          return (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMode(m.value)}
+              className={[
+                'w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-all duration-150',
+                active
+                  ? 'bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                  : 'bg-zinc-200 dark:bg-surface-700 border-zinc-400 dark:border-surface-500 hover:border-zinc-500 dark:hover:border-zinc-500 hover:bg-zinc-300 dark:hover:bg-surface-600',
+              ].join(' ')}
+            >
+              {/* Radio-Kreis */}
+              <div
                 className={[
-                  'w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-all duration-150',
-                  active
-                    ? 'bg-emerald-500/10 border-emerald-500/40 ring-1 ring-emerald-500/20'
-                    : 'bg-zinc-200 dark:bg-surface-700 border-zinc-400 dark:border-surface-500 hover:border-zinc-500 dark:hover:border-zinc-500 hover:bg-zinc-300 dark:hover:bg-surface-600',
-                ].join(' ')}
-              >
-                {/* Radio-Kreis */}
-                <div className={[
                   'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
                   active ? 'border-emerald-500' : 'border-zinc-400 dark:border-zinc-600',
-                ].join(' ')}>
-                  {active && <div className="h-2 w-2 rounded-full bg-emerald-500" />}
-                </div>
+                ].join(' ')}
+              >
+                {active && <div className="h-2 w-2 rounded-full bg-emerald-500" />}
+              </div>
 
-                <div className="min-w-0 flex-1">
-                  {/* Titel-Zeile */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm leading-none">{m.icon}</span>
-                    <p className={[
+              <div className="min-w-0 flex-1">
+                {/* Titel-Zeile */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm leading-none">{m.icon}</span>
+                  <p
+                    className={[
                       'text-sm font-medium leading-none',
                       active ? 'text-emerald-600 dark:text-emerald-300' : 'text-zinc-800 dark:text-zinc-200',
-                    ].join(' ')}>
-                      {t(`mode.${m.value}` as 'mode.one_file_per_sheet')}
-                    </p>
-                    {m.badge && (
-                      <span className={[
+                    ].join(' ')}
+                  >
+                    {t(`mode.${m.value}` as 'mode.one_file_per_sheet')}
+                  </p>
+                  {m.badge && (
+                    <span
+                      className={[
                         'text-xs px-1.5 py-0.5 rounded font-medium',
                         badgeClasses[m.badgeColor ?? 'sky'] ?? badgeClasses.sky,
-                      ].join(' ')}>
-                        {m.badge}
-                      </span>
-                    )}
-                    <span
-                      title={m.formatPreserved ? 'Formatierung wird vollständig erhalten' : 'Neue strukturierte Ausgabe (eigenes Layout)'}
-                      className={[
-                        'ml-auto text-xs shrink-0',
-                        m.formatPreserved ? 'text-emerald-500/70' : 'text-amber-500/60',
                       ].join(' ')}
                     >
-                      {m.formatPreserved ? '✦ Format' : '⊞ Matrix'}
+                      {m.badge}
                     </span>
-                  </div>
-
-                  {/* Beschreibung */}
-                  <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">{t(`mode.${m.value}.desc` as 'mode.one_file_per_sheet.desc')}</p>
+                  )}
+                  <span
+                    title={
+                      m.formatPreserved
+                        ? 'Formatierung wird vollständig erhalten'
+                        : 'Neue strukturierte Ausgabe (eigenes Layout)'
+                    }
+                    className={[
+                      'ml-auto text-xs shrink-0',
+                      m.formatPreserved ? 'text-emerald-500/70' : 'text-amber-500/60',
+                    ].join(' ')}
+                  >
+                    {m.formatPreserved ? '✦ Format' : '⊞ Matrix'}
+                  </span>
                 </div>
-              </button>
-            );
-          })}
+
+                {/* Beschreibung */}
+                <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">
+                  {t(`mode.${m.value}.desc` as 'mode.one_file_per_sheet.desc')}
+                </p>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Namen der Sheets in der Ausgabedatei (ausklappbar, dezentes Feature) */}
@@ -451,7 +466,12 @@ export function MergeOptionsPanel() {
             aria-expanded={customNamesOpen}
           >
             <svg
-              className={['w-3.5 h-3.5 shrink-0 text-zinc-400 dark:text-zinc-500 transition-transform', customNamesOpen && 'rotate-90'].filter(Boolean).join(' ')}
+              className={[
+                'w-3.5 h-3.5 shrink-0 text-zinc-400 dark:text-zinc-500 transition-transform',
+                customNamesOpen && 'rotate-90',
+              ]
+                .filter(Boolean)
+                .join(' ')}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -459,9 +479,7 @@ export function MergeOptionsPanel() {
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
-            <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
-              {t('merge.customSheetNames')}
-            </span>
+            <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">{t('merge.customSheetNames')}</span>
             <span className="text-xs text-zinc-400 dark:text-zinc-500 truncate flex-1 min-w-0">
               {!customNamesOpen && t('merge.customSheetNamesCollapsed')}
             </span>
@@ -473,7 +491,9 @@ export function MergeOptionsPanel() {
               </p>
               {mergeOrderRows.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">{t('merge.namePatternsLabel')}</span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
+                    {t('merge.namePatternsLabel')}
+                  </span>
                   {[
                     { id: '01', labelKey: 'merge.namePattern01' as const },
                     { id: '001', labelKey: 'merge.namePattern001' as const },
@@ -500,9 +520,7 @@ export function MergeOptionsPanel() {
                 </div>
               )}
               {sortedFiles.length === 0 ? (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
-                  {t('merge.customSheetNamesNoFiles')}
-                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">{t('merge.customSheetNamesNoFiles')}</p>
               ) : (
                 <>
                   {/* Spaltenüberschriften (bleiben beim Scrollen sichtbar) */}
@@ -511,67 +529,76 @@ export function MergeOptionsPanel() {
                     <span>{t('merge.customSheetNamesColOutput')}</span>
                   </div>
                   <div className="space-y-4 max-h-[280px] overflow-auto pr-1 mt-1.5">
-                  {sortedFiles.map((file) => {
-                    const sheets = sheetInfo[file.id]?.sheets ?? [];
-                    const byFile = mergeOptions.customSheetNames?.[file.filename] ?? {};
-                    const updateSheetName = (sheetId: string, value: string) => {
-                      const nextByFile = { ...byFile };
-                      const v = value.trim();
-                      if (v) nextByFile[sheetId] = v;
-                      else delete nextByFile[sheetId];
-                      const next = { ...(mergeOptions.customSheetNames ?? {}) };
-                      if (Object.keys(nextByFile).length) next[file.filename] = nextByFile;
-                      else delete next[file.filename];
-                      setMergeOptions({ ...mergeOptions, customSheetNames: Object.keys(next).length ? next : undefined });
-                    };
-                    const fileBaseName = file.filename.replace(/\.[^.]+$/, '');
-                    if (sheets.length > 1) {
-                      return (
-                        <div key={file.id} className="space-y-2">
-                          <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 truncate" title={file.filename}>
-                            {t('merge.customSheetNamesMulti')}: {file.filename}
-                          </p>
-                          <div className="space-y-1.5 pl-3 border-l-2 border-zinc-200 dark:border-surface-600">
-                            {sheets.map((sheet) => {
-                              const key = `${file.filename}\t${sheet.id}`;
-                              const effectiveName = effectiveNames.get(key) ?? `${fileBaseName} – ${sheet.name}`;
-                              return (
-                                <div key={sheet.id} className="grid grid-cols-[1fr,1fr] gap-2 items-center">
-                                  <span className="text-xs text-zinc-500 dark:text-zinc-500 truncate" title={sheet.name}>
-                                    → {sheet.name}
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={effectiveName}
-                                    onChange={(e) => updateSheetName(sheet.id, e.target.value)}
-                                    className="text-xs px-2 py-1.5 rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
-                                    title={effectiveName}
-                                  />
-                                </div>
-                              );
-                            })}
+                    {sortedFiles.map((file) => {
+                      const sheets = sheetInfo[file.id]?.sheets ?? [];
+                      const byFile = mergeOptions.customSheetNames?.[file.filename] ?? {};
+                      const updateSheetName = (sheetId: string, value: string) => {
+                        const nextByFile = { ...byFile };
+                        const v = value.trim();
+                        if (v) nextByFile[sheetId] = v;
+                        else delete nextByFile[sheetId];
+                        const next = { ...(mergeOptions.customSheetNames ?? {}) };
+                        if (Object.keys(nextByFile).length) next[file.filename] = nextByFile;
+                        else delete next[file.filename];
+                        setMergeOptions({
+                          ...mergeOptions,
+                          customSheetNames: Object.keys(next).length ? next : undefined,
+                        });
+                      };
+                      const fileBaseName = file.filename.replace(/\.[^.]+$/, '');
+                      if (sheets.length > 1) {
+                        return (
+                          <div key={file.id} className="space-y-2">
+                            <p
+                              className="text-xs font-medium text-zinc-600 dark:text-zinc-400 truncate"
+                              title={file.filename}
+                            >
+                              {t('merge.customSheetNamesMulti')}: {file.filename}
+                            </p>
+                            <div className="space-y-1.5 pl-3 border-l-2 border-zinc-200 dark:border-surface-600">
+                              {sheets.map((sheet) => {
+                                const key = `${file.filename}\t${sheet.id}`;
+                                const effectiveName = effectiveNames.get(key) ?? `${fileBaseName} – ${sheet.name}`;
+                                return (
+                                  <div key={sheet.id} className="grid grid-cols-[1fr,1fr] gap-2 items-center">
+                                    <span
+                                      className="text-xs text-zinc-500 dark:text-zinc-500 truncate"
+                                      title={sheet.name}
+                                    >
+                                      → {sheet.name}
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={effectiveName}
+                                      onChange={(e) => updateSheetName(sheet.id, e.target.value)}
+                                      className="text-xs px-2 py-1.5 rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                                      title={effectiveName}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
+                        );
+                      }
+                      const key0 = `${file.filename}\t0`;
+                      const effectiveName0 = effectiveNames.get(key0) ?? fileBaseName;
+                      return (
+                        <div key={file.id} className="grid grid-cols-[1fr,1fr] gap-2 items-center">
+                          <span className="text-xs text-zinc-600 dark:text-zinc-500 truncate" title={file.filename}>
+                            {t('merge.customSheetNamesSingle')}: {file.filename}
+                          </span>
+                          <input
+                            type="text"
+                            value={effectiveName0}
+                            onChange={(e) => updateSheetName('0', e.target.value)}
+                            className="text-xs px-2 py-1.5 rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+                            title={effectiveName0}
+                          />
                         </div>
                       );
-                    }
-                    const key0 = `${file.filename}\t0`;
-                    const effectiveName0 = effectiveNames.get(key0) ?? fileBaseName;
-                    return (
-                      <div key={file.id} className="grid grid-cols-[1fr,1fr] gap-2 items-center">
-                        <span className="text-xs text-zinc-600 dark:text-zinc-500 truncate" title={file.filename}>
-                          {t('merge.customSheetNamesSingle')}: {file.filename}
-                        </span>
-                        <input
-                          type="text"
-                          value={effectiveName0}
-                          onChange={(e) => updateSheetName('0', e.target.value)}
-                          className="text-xs px-2 py-1.5 rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-800 text-zinc-800 dark:text-zinc-200 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
-                          title={effectiveName0}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+                    })}
+                  </div>
                 </>
               )}
             </div>

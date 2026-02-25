@@ -5,7 +5,9 @@ export type Locale = 'de' | 'en';
 function getSavedLocale(): Locale {
   try {
     return localStorage.getItem('eXmerg-locale') === 'en' ? 'en' : 'de';
-  } catch { return 'de'; }
+  } catch {
+    return 'de';
+  }
 }
 
 // ─── localStorage-Persistenz ──────────────────────────────────────────────────
@@ -14,18 +16,26 @@ function getSavedMode(): MergeMode {
   try {
     const saved = localStorage.getItem('mergeMode');
     const valid: MergeMode[] = [
-      'all_to_one_sheet', 'one_file_per_sheet',
-      'all_with_source_column', 'consolidated_sheets', 'row_per_file', 'row_per_file_no_sum',
+      'all_to_one_sheet',
+      'one_file_per_sheet',
+      'all_with_source_column',
+      'consolidated_sheets',
+      'row_per_file',
+      'row_per_file_no_sum',
     ];
     if (saved && valid.includes(saved as MergeMode)) return saved as MergeMode;
-  } catch { /* ignorieren */ }
+  } catch {
+    /* ignorieren */
+  }
   return 'consolidated_sheets';
 }
 
 function getSavedFormat(): 'xlsx' | 'ods' {
   try {
     return localStorage.getItem('outputFormat') === 'ods' ? 'ods' : 'xlsx';
-  } catch { /* ignorieren */ }
+  } catch {
+    /* ignorieren */
+  }
   return 'xlsx';
 }
 
@@ -40,7 +50,13 @@ export type FileSortOrder =
   | 'dateOldest';
 
 const FILE_SORT_ORDER_VALID: FileSortOrder[] = [
-  'uploadOrder', 'filename', 'alphabetical', 'sizeAsc', 'sizeDesc', 'dateNewest', 'dateOldest',
+  'uploadOrder',
+  'filename',
+  'alphabetical',
+  'sizeAsc',
+  'sizeDesc',
+  'dateNewest',
+  'dateOldest',
 ];
 
 function getSavedFileSortOrder(): FileSortOrder {
@@ -49,12 +65,18 @@ function getSavedFileSortOrder(): FileSortOrder {
     if (saved && FILE_SORT_ORDER_VALID.includes(saved as FileSortOrder)) {
       // Standard ist „Upload-Reihenfolge“; einmalig alten Default „filename“ migrieren
       if (saved === 'filename') {
-        try { localStorage.setItem('fileSortOrder', 'uploadOrder'); } catch { /* ignore */ }
+        try {
+          localStorage.setItem('fileSortOrder', 'uploadOrder');
+        } catch {
+          /* ignore */
+        }
         return 'uploadOrder';
       }
       return saved as FileSortOrder;
     }
-  } catch { /* ignorieren */ }
+  } catch {
+    /* ignorieren */
+  }
   return 'uploadOrder';
 }
 
@@ -122,8 +144,18 @@ export function sortFileList(files: FileItem[], order: FileSortOrder): FileItem[
 // ─── Dateiname-Generierung ────────────────────────────────────────────────────
 
 const MONTHS_DE = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember',
 ];
 
 export function generateOutputFilename(files: FileItem[], format: 'xlsx' | 'ods' = 'xlsx'): string {
@@ -155,8 +187,7 @@ export function generateOutputFilename(files: FileItem[], format: 'xlsx' | 'ods'
     const lastY = last.getFullYear();
     const firstM = first.getMonth();
     const lastM = last.getMonth();
-    if (firstY === lastY && firstM === lastM)
-      return `${MONTHS_DE[firstM]} ${firstY}_merged${ext}`;
+    if (firstY === lastY && firstM === lastM) return `${MONTHS_DE[firstM]} ${firstY}_merged${ext}`;
     if (firstY === lastY)
       return `${pad(first.getDate())}.${pad(first.getMonth() + 1)}.-${pad(last.getDate())}.${pad(last.getMonth() + 1)}.${firstY}_merged${ext}`;
     const fmt = (d: Date) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
@@ -324,11 +355,15 @@ export const useStore = create<AppState>((set) => ({
         }
       }
 
-      const outputFilename = s.isCustomFilename
-        ? s.outputFilename
-        : generateOutputFilename(allFiles, s.outputFormat);
+      const outputFilename = s.isCustomFilename ? s.outputFilename : generateOutputFilename(allFiles, s.outputFormat);
 
-      return { files: allFiles, sheetInfo: newSheetInfo, duplicateFiles: duplicates, newlyAddedFileIds, outputFilename };
+      return {
+        files: allFiles,
+        sheetInfo: newSheetInfo,
+        duplicateFiles: duplicates,
+        newlyAddedFileIds,
+        outputFilename,
+      };
     }),
 
   bumpHistory: () => set((s) => ({ historyVersion: s.historyVersion + 1 })),
@@ -359,9 +394,7 @@ export const useStore = create<AppState>((set) => ({
       const newFiles = s.files.filter((f) => f.id !== id);
       const newSheetInfo = { ...s.sheetInfo };
       delete newSheetInfo[id];
-      const outputFilename = s.isCustomFilename
-        ? s.outputFilename
-        : generateOutputFilename(newFiles, s.outputFormat);
+      const outputFilename = s.isCustomFilename ? s.outputFilename : generateOutputFilename(newFiles, s.outputFormat);
       return { files: newFiles, sheetInfo: newSheetInfo, outputFilename };
     }),
 
@@ -371,9 +404,7 @@ export const useStore = create<AppState>((set) => ({
       const newFiles = s.files.filter((f) => !idSet.has(f.id));
       const newSheetInfo = { ...s.sheetInfo };
       for (const id of ids) delete newSheetInfo[id];
-      const outputFilename = s.isCustomFilename
-        ? s.outputFilename
-        : generateOutputFilename(newFiles, s.outputFormat);
+      const outputFilename = s.isCustomFilename ? s.outputFilename : generateOutputFilename(newFiles, s.outputFormat);
       return { files: newFiles, sheetInfo: newSheetInfo, outputFilename };
     }),
 
@@ -384,9 +415,7 @@ export const useStore = create<AppState>((set) => ({
       const [moved] = next.splice(fromIndex, 1);
       if (!moved) return s;
       next.splice(toIndex, 0, moved);
-      const outputFilename = s.isCustomFilename
-        ? s.outputFilename
-        : generateOutputFilename(next, s.outputFormat);
+      const outputFilename = s.isCustomFilename ? s.outputFilename : generateOutputFilename(next, s.outputFormat);
       return { files: next, outputFilename };
     }),
 
@@ -402,9 +431,7 @@ export const useStore = create<AppState>((set) => ({
 
   toggleDuplicateReplace: (name) =>
     set((s) => ({
-      duplicateFiles: s.duplicateFiles.map((d) =>
-        d.name === name ? { ...d, replace: !d.replace } : d
-      ),
+      duplicateFiles: s.duplicateFiles.map((d) => (d.name === name ? { ...d, replace: !d.replace } : d)),
     })),
 
   replaceSelectedDuplicates: () =>
@@ -474,14 +501,21 @@ export const useStore = create<AppState>((set) => ({
 
   clearDuplicates: () => set({ duplicateFiles: [] }),
 
-
   setMergeOptions: (o) => {
-    try { localStorage.setItem('mergeMode', o.mode); } catch { /* ignorieren */ }
+    try {
+      localStorage.setItem('mergeMode', o.mode);
+    } catch {
+      /* ignorieren */
+    }
     set({ mergeOptions: o });
   },
 
   setOutputFormat: (f) => {
-    try { localStorage.setItem('outputFormat', f); } catch { /* ignorieren */ }
+    try {
+      localStorage.setItem('outputFormat', f);
+    } catch {
+      /* ignorieren */
+    }
     set((s) => ({
       outputFormat: f,
       outputFilename: s.isCustomFilename ? s.outputFilename : generateOutputFilename(s.files, f),
@@ -495,14 +529,17 @@ export const useStore = create<AppState>((set) => ({
   setDownload: (url, name) => set({ downloadUrl: url, downloadFilename: name }),
   setLastMergeHistoryMeta: (meta) => set({ lastMergeHistoryMeta: meta }),
 
-  setOutputFilename: (name, isCustom = true) =>
-    set({ outputFilename: name, isCustomFilename: isCustom }),
+  setOutputFilename: (name, isCustom = true) => set({ outputFilename: name, isCustomFilename: isCustom }),
 
   setUploadProgress: (p) => set({ uploadProgress: p }),
 
   setFileSortOrder: (order) => {
     set({ fileSortOrder: order });
-    try { localStorage.setItem('fileSortOrder', order); } catch { /* ignorieren */ }
+    try {
+      localStorage.setItem('fileSortOrder', order);
+    } catch {
+      /* ignorieren */
+    }
   },
 
   clearNewlyAddedFileIds: () => set({ newlyAddedFileIds: [] }),
@@ -535,7 +572,11 @@ export const useStore = create<AppState>((set) => ({
     })),
 
   setLocale: (locale) => {
-    try { localStorage.setItem('eXmerg-locale', locale); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('eXmerg-locale', locale);
+    } catch {
+      /* ignore */
+    }
     set({ locale });
   },
 }));

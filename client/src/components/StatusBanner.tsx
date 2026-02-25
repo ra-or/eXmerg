@@ -8,21 +8,24 @@ const VARIANT_STYLES: Record<
   { container: string; icon: string; title: string; item: string; close: string }
 > = {
   error: {
-    container: 'rounded-lg bg-red-500/10 border border-red-500/25 text-xs text-red-400 animate-slide-up overflow-hidden',
+    container:
+      'rounded-lg bg-red-500/10 border border-red-500/25 text-xs text-red-400 animate-slide-up overflow-hidden',
     icon: 'text-red-400',
     title: 'text-red-700 dark:text-red-300',
     item: 'text-red-300/95',
     close: 'hover:bg-red-500/20 text-red-200',
   },
   warning: {
-    container: 'rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-400 animate-slide-up overflow-hidden',
+    container:
+      'rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-400 animate-slide-up overflow-hidden',
     icon: 'text-amber-400',
     title: 'text-amber-700 dark:text-amber-300',
     item: 'text-amber-300/95',
     close: 'hover:bg-amber-500/20 text-amber-200',
   },
   success: {
-    container: 'rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 animate-slide-up overflow-hidden',
+    container:
+      'rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 animate-slide-up overflow-hidden',
     icon: 'text-emerald-400',
     title: 'text-emerald-700 dark:text-emerald-300',
     item: 'text-emerald-300/95',
@@ -34,7 +37,11 @@ const VARIANT_STYLES: Record<
 function IconAlertTriangle({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+      />
     </svg>
   );
 }
@@ -137,27 +144,37 @@ export function StatusBanner({
                 aria-label={expanded ? collapseLabel : expandLabel}
               >
                 {expanded ? collapseLabel : expandLabel}
-                <svg className={['inline-block w-3.5 h-3.5 ml-0.5 align-middle transition-transform', expanded ? 'rotate-180' : ''].join(' ')} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className={[
+                    'inline-block w-3.5 h-3.5 ml-0.5 align-middle transition-transform',
+                    expanded ? 'rotate-180' : '',
+                  ].join(' ')}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
             )}
           </div>
-          {showExpanded && (children != null ? (
-            noScrollWrapper ? (
-              <div className="mt-1.5 pr-2">{children}</div>
-            ) : (
-              <div className="mt-1.5 max-h-48 overflow-y-auto pr-2 space-y-1">{children}</div>
-            )
-          ) : items.length > 0 ? (
-            <ul className="mt-1.5 space-y-1 list-none pl-0 max-h-48 overflow-y-auto pr-2">
-              {items.map((item, i) => (
-                <li key={i} className={`break-all ${styles.item}`}>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          ) : null)}
+          {showExpanded &&
+            (children != null ? (
+              noScrollWrapper ? (
+                <div className="mt-1.5 pr-2">{children}</div>
+              ) : (
+                <div className="mt-1.5 max-h-48 overflow-y-auto pr-2 space-y-1">{children}</div>
+              )
+            ) : items.length > 0 ? (
+              <ul className="mt-1.5 space-y-1 list-none pl-0 max-h-48 overflow-y-auto pr-2">
+                {items.map((item, i) => (
+                  <li key={i} className={`break-all ${styles.item}`}>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            ) : null)}
         </div>
         {closable && (
           <button

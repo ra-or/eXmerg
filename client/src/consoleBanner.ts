@@ -13,11 +13,7 @@ const STYLE_TITLE = [
   'letter-spacing: 0.15em;',
 ].join(' ');
 
-const STYLE_TAGLINE = [
-  'color: #6b7280;',
-  'font-family: ui-monospace, monospace;',
-  'font-size: 11px;',
-].join(' ');
+const STYLE_TAGLINE = ['color: #6b7280;', 'font-family: ui-monospace, monospace;', 'font-size: 11px;'].join(' ');
 
 const TITLE_DELAY_MS = 0;
 const TAGLINE_DELAY_MS = 350;

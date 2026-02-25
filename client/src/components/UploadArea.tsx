@@ -35,20 +35,22 @@ export function UploadArea({ validateAndAdd, full, fileCount }: UploadAreaProps)
         ].join(' ')}
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338-2.32 5.75 5.75 0 011.987 4.595A4.5 4.5 0 0117.25 19.5H6.75z" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338-2.32 5.75 5.75 0 011.987 4.595A4.5 4.5 0 0117.25 19.5H6.75z"
+          />
         </svg>
       </div>
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          {title}
-        </p>
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">{t('upload.subtitle')}</p>
         <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
-          {t('upload.subtitle')}
-        </p>
-        <p className="text-xs text-zinc-500 dark:text-zinc-600 mt-0.5">
-          {fileCount === 0 ? t('upload.supports') : t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}
+          {fileCount === 0
+            ? t('upload.supports')
+            : t('upload.limits', { n: MAX_FILES, mb: MAX_SIZE / 1024 / 1024, totalMb: MAX_TOTAL_BYTES / 1024 / 1024 })}
         </p>
       </div>
 
@@ -60,9 +62,17 @@ export function UploadArea({ validateAndAdd, full, fileCount }: UploadAreaProps)
       )}
 
       {/* Button */}
-      <label className={['btn-secondary shrink-0 text-xs', full ? 'pointer-events-none opacity-40' : 'cursor-pointer'].join(' ')}>
+      <label
+        className={['btn-secondary shrink-0 text-xs', full ? 'pointer-events-none opacity-40' : 'cursor-pointer'].join(
+          ' ',
+        )}
+      >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+          />
         </svg>
         {t('upload.browse')}
         <input

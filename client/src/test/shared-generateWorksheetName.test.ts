@@ -40,7 +40,7 @@ describe('truncateWorksheetName', () => {
     expect(result.length).toBeLessThanOrEqual(WORKSHEET_NAME_MAX_LENGTH);
     expect(result).toContain('VeryLongFileName');
     expect(result).toContain('…');
-    expect(result).toBe('VeryLongFileName – PivotTabl…');
+    expect(result).toBe('VeryLongFileName – PivotTable_…');
   });
 
   it('truncates simple long name with ellipsis', () => {
@@ -146,7 +146,7 @@ describe('generateWorksheetName', () => {
       sheetCountInFile: 2,
       existingNames: used,
     });
-    expect(name).not.toMatch(/[\[\]:*?/\\]/);
+    expect(name).not.toMatch(/[[\]:*?/\\]/);
   });
 
   it('empty sheet name fallback → fileBaseName', () => {

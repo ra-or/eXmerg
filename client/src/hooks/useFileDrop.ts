@@ -71,7 +71,7 @@ export function useFileDrop() {
       setRejectedFiles(rejected);
       if (toAdd.length) addFiles(toAdd);
     },
-    [addFiles, setRejectedFiles, fileCount, currentTotalBytes]
+    [addFiles, setRejectedFiles, fileCount, currentTotalBytes],
   );
 
   const onDrop = useCallback(
@@ -83,14 +83,16 @@ export function useFileDrop() {
         setIsDragOver(false);
         try {
           addHistoryFile(JSON.parse(historyData));
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         return;
       }
       e.preventDefault();
       setIsDragOver(false);
       validateAndAdd(e.dataTransfer.files);
     },
-    [validateAndAdd, addHistoryFile]
+    [validateAndAdd, addHistoryFile],
   );
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -108,5 +110,12 @@ export function useFileDrop() {
     }
   }, []);
 
-  return { onDrop, onDragOver, onDragLeave, isDragOver, validateAndAdd, full: fileCount >= MAX_FILES || currentTotalBytes >= MAX_TOTAL_BYTES };
+  return {
+    onDrop,
+    onDragOver,
+    onDragLeave,
+    isDragOver,
+    validateAndAdd,
+    full: fileCount >= MAX_FILES || currentTotalBytes >= MAX_TOTAL_BYTES,
+  };
 }

@@ -50,12 +50,7 @@ function mapMulterError(code: string | undefined, defaultMessage: string): { sta
  * Multer-Fehler werden in deutsche Meldungen übersetzt.
  * err wird als unknown behandelt, damit next('string') / next(123) nicht crashen.
  */
-export function errorHandler(
-  err: unknown,
-  req: Request,
-  res: Response,
-  _next: NextFunction
-): void {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   let statusCode = getErrorStatus(err);
   let message = getErrorMessage(err) || 'Ein unerwarteter Fehler ist aufgetreten.';
   const code = getErrorCode(err);

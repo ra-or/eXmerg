@@ -18,6 +18,6 @@ if (root) {
           <App />
         </QueryClientProvider>
       </ErrorBoundary>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 }

@@ -29,8 +29,8 @@ function formatFileDate(ms: number): string {
 
 const EXT_COLORS: Record<string, string> = {
   '.xlsx': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-  '.xls':  'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-  '.ods':  'bg-sky-500/15 text-sky-400 border-sky-500/20',
+  '.xls': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  '.ods': 'bg-sky-500/15 text-sky-400 border-sky-500/20',
 };
 
 /** Semantische Farbe für Sheet-Ratio (nur CSS-Klassen, kein Layout). */
@@ -43,21 +43,21 @@ function getRatioColor(matched: number, total: number): string {
 
 export function FileList() {
   const t = useT();
-  const files              = useStore((s) => s.files);
-  const fileSortOrder      = useStore((s) => s.fileSortOrder);
-  const sheetInfo          = useStore((s) => s.sheetInfo);
-  const newlyAddedFileIds      = useStore((s) => s.newlyAddedFileIds);
+  const files = useStore((s) => s.files);
+  const fileSortOrder = useStore((s) => s.fileSortOrder);
+  const sheetInfo = useStore((s) => s.sheetInfo);
+  const newlyAddedFileIds = useStore((s) => s.newlyAddedFileIds);
   const clearNewlyAddedFileIds = useStore((s) => s.clearNewlyAddedFileIds);
-  const removeFile         = useStore((s) => s.removeFile);
-  const removeFiles        = useStore((s) => s.removeFiles);
-  const reorderFiles       = useStore((s) => s.reorderFiles);
-  const setSheetInfo       = useStore((s) => s.setSheetInfo);
+  const removeFile = useStore((s) => s.removeFile);
+  const removeFiles = useStore((s) => s.removeFiles);
+  const reorderFiles = useStore((s) => s.reorderFiles);
+  const setSheetInfo = useStore((s) => s.setSheetInfo);
   const setSelectedFileIds = useStore((s) => s.setSelectedFileIds);
-  const uploadProgress     = useStore((s) => s.uploadProgress);
-  const downloadUrl        = useStore((s) => s.downloadUrl);
-  const mergeOptions       = useStore((s) => s.mergeOptions);
-  const setMergeOptions    = useStore((s) => s.setMergeOptions);
-  const setFileSortOrder   = useStore((s) => s.setFileSortOrder);
+  const uploadProgress = useStore((s) => s.uploadProgress);
+  const downloadUrl = useStore((s) => s.downloadUrl);
+  const mergeOptions = useStore((s) => s.mergeOptions);
+  const setMergeOptions = useStore((s) => s.setMergeOptions);
+  const setFileSortOrder = useStore((s) => s.setFileSortOrder);
 
   const sortedFiles = useMemo(() => sortFileList(files, fileSortOrder), [files, fileSortOrder]);
   const selectedFileIds = useStore((s) => s.selectedFileIds);
@@ -85,9 +85,7 @@ export function FileList() {
             ]),
           )
         : undefined;
-    const sheetNameFilter = mergeOptions.sheetNameFilter?.values?.length
-      ? mergeOptions.sheetNameFilter
-      : undefined;
+    const sheetNameFilter = mergeOptions.sheetNameFilter?.values?.length ? mergeOptions.sheetNameFilter : undefined;
     if (!selectedSheetsByFile && !sheetNameFilter && mode === 'all') return undefined;
     return { mode, selectedSheetsByFile, sheetNameFilter };
   }, [mergeOptions.sheetSelectionMode, mergeOptions.selectedSheets, mergeOptions.sheetNameFilter]);
@@ -96,15 +94,10 @@ export function FileList() {
     [filesMeta, sheetCollectOptions],
   );
   const filterActive = useMemo(
-    () =>
-      mergeOptions.sheetSelectionMode === 'first' ||
-      (mergeOptions.sheetNameFilter?.values?.length ?? 0) > 0,
+    () => mergeOptions.sheetSelectionMode === 'first' || (mergeOptions.sheetNameFilter?.values?.length ?? 0) > 0,
     [mergeOptions.sheetSelectionMode, mergeOptions.sheetNameFilter],
   );
-  const totalSheetsInList = useMemo(
-    () => filesMeta.reduce((n, f) => n + f.sheets.length, 0),
-    [filesMeta],
-  );
+  const totalSheetsInList = useMemo(() => filesMeta.reduce((n, f) => n + f.sheets.length, 0), [filesMeta]);
   const selectedSheetCount = useMemo(
     () =>
       selectionPreview.files
@@ -118,8 +111,8 @@ export function FileList() {
     [selectionPreview.files],
   );
   /** Anzeige „ausgewählt“: bei Filter ohne manuelle Auswahl = alle Dateien + gematchte Sheets */
-  const displaySelectedFileCount = (filterActive && selectedIds.size === 0) ? files.length : selectedIds.size;
-  const displaySelectedSheetCount = (filterActive && selectedIds.size === 0) ? totalMatchedSheets : selectedSheetCount;
+  const displaySelectedFileCount = filterActive && selectedIds.size === 0 ? files.length : selectedIds.size;
+  const displaySelectedSheetCount = filterActive && selectedIds.size === 0 ? totalMatchedSheets : selectedSheetCount;
 
   const dragSrc = useRef<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
@@ -133,12 +126,13 @@ export function FileList() {
   }, [newlyAddedFileIds, clearNewlyAddedFileIds]);
 
   // ── Mehrfachauswahl (sync mit Store für Merge-Scope) ────────────────────────
-  const anySelected  = selectedIds.size > 0;
-  const allSelected  = sortedFiles.length > 0 && selectedIds.size === sortedFiles.length;
+  const anySelected = selectedIds.size > 0;
+  const allSelected = sortedFiles.length > 0 && selectedIds.size === sortedFiles.length;
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelectedFileIds(Array.from(next));
   };
 
@@ -158,11 +152,11 @@ export function FileList() {
     if (cleaned.length !== selectedFileIds.length) setSelectedFileIds(cleaned);
   }, [files, selectedFileIds, setSelectedFileIds]);
 
-  const isUploading  = uploadProgress !== null && uploadProgress !== 'processing';
+  const isUploading = uploadProgress !== null && uploadProgress !== 'processing';
   const isProcessing = uploadProgress === 'processing';
-  const isDone       = !!downloadUrl;
-  const uploadPct    = typeof uploadProgress === 'number' ? uploadProgress : 0;
-  const busy         = isUploading || isProcessing;
+  const isDone = !!downloadUrl;
+  const uploadPct = typeof uploadProgress === 'number' ? uploadProgress : 0;
+  const busy = isUploading || isProcessing;
 
   /** Während eines Merges: nur diese Dateien zeigen Fortschritt (ausgewählte oder alle). */
   const mergingIds = useMemo(() => {
@@ -225,9 +219,12 @@ export function FileList() {
     }
   }, []);
 
-  useEffect(() => () => {
-    if (previewDelayRef.current) clearTimeout(previewDelayRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (previewDelayRef.current) clearTimeout(previewDelayRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     window.addEventListener('scroll', hidePreviewOnScroll, { passive: true });
@@ -235,7 +232,9 @@ export function FileList() {
   }, [hidePreviewOnScroll]);
 
   // Erweiterte Zeilen: pro Datei eine Zeile, bei geöffneter Sheet-Auswahl eine zusätzliche Zeile direkt darunter
-  type ListRow = { type: 'file'; file: (typeof sortedFiles)[number]; fileIndex: number } | { type: 'sheetPanel'; fileId: string; fileIndex: number };
+  type ListRow =
+    | { type: 'file'; file: (typeof sortedFiles)[number]; fileIndex: number }
+    | { type: 'sheetPanel'; fileId: string; fileIndex: number };
   const listItems = useMemo<ListRow[]>(() => {
     const rows: ListRow[] = [];
     sortedFiles.forEach((file, i) => {
@@ -283,19 +282,21 @@ export function FileList() {
       if (!item.file) continue; // History-Einträge ohne lokale Datei überspringen
       const info = sheetInfo[item.id];
       if (!info || !info.loading) continue;
-      void fetchSheets(item.file).then((res) => {
-        const sheets = res.sheets ?? [];
-        setSheetInfo(item.id, {
-          sheets,
-          loading: false,
-          selected: [],
-          previewRows: sheets[0]?.previewRows ?? res.previewRows,
+      void fetchSheets(item.file)
+        .then((res) => {
+          const sheets = res.sheets ?? [];
+          setSheetInfo(item.id, {
+            sheets,
+            loading: false,
+            selected: [],
+            previewRows: sheets[0]?.previewRows ?? res.previewRows,
+          });
+        })
+        .catch(() => {
+          setSheetInfo(item.id, { sheets: [], loading: false, selected: [] });
         });
-      }).catch(() => {
-        setSheetInfo(item.id, { sheets: [], loading: false, selected: [] });
-      });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files.map((f) => f.id).join(',')]);
 
   // ── Drag-Handler ──────────────────────────────────────────────────────────
@@ -316,7 +317,10 @@ export function FileList() {
     dragSrc.current = null;
     setDragOver(null);
   };
-  const handleDragEnd = () => { dragSrc.current = null; setDragOver(null); };
+  const handleDragEnd = () => {
+    dragSrc.current = null;
+    setDragOver(null);
+  };
 
   // ── Sheet-Auswahl ─────────────────────────────────────────────────────────
   const toggleSheetSelected = (fileId: string, sheetId: string) => {
@@ -352,7 +356,6 @@ export function FileList() {
 
   return (
     <div className="space-y-2">
-
       {/* ── Summary-Bar + Merge-Reihenfolge (eine Zeile, auf kleinen Screens Wrap) ─ */}
       <div className="flex flex-wrap items-center gap-3 px-1">
         <SelectionSummaryBar
@@ -369,11 +372,16 @@ export function FileList() {
             className="text-xs rounded border border-zinc-400 dark:border-surface-500 bg-zinc-100 dark:bg-surface-700 text-zinc-800 dark:text-zinc-200 px-2 py-1 focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
           >
             {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+              <option key={opt.value} value={opt.value}>
+                {t(opt.labelKey)}
+              </option>
             ))}
           </select>
           {!isUploadOrder && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline" title={t('files.sort.dragHint')}>
+            <span
+              className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline"
+              title={t('files.sort.dragHint')}
+            >
               {t('files.sort.dragHint')}
             </span>
           )}
@@ -402,9 +410,7 @@ export function FileList() {
             )}
           </button>
 
-          <span className="text-xs text-zinc-500 dark:text-zinc-400 flex-1">
-            {t('files.selectionLabel')}
-          </span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 flex-1">{t('files.selectionLabel')}</span>
 
           <button
             type="button"
@@ -414,7 +420,11 @@ export function FileList() {
               hover:bg-red-500/20 hover:border-red-500/40 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
             </svg>
             {selectedIds.size === 1 ? t('files.remove') : t('files.removeN', { n: selectedIds.size })}
           </button>
@@ -439,10 +449,7 @@ export function FileList() {
         onDragOver={isUploadOrder ? (e) => e.preventDefault() : undefined}
         className="min-h-[200px] max-h-[60vh] overflow-auto rounded-lg border border-zinc-200 dark:border-surface-600"
       >
-        <div
-          style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
-          className="w-full"
-        >
+        <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }} className="w-full">
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const row = listItems[virtualRow.index]!;
             if (row.type === 'sheetPanel') {
@@ -494,12 +501,18 @@ export function FileList() {
                             sel
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                               : isHoveredSheet
-                              ? 'bg-zinc-300 dark:bg-surface-600 border-zinc-500 dark:border-surface-500'
-                              : 'bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border-zinc-400 dark:border-surface-500 hover:border-zinc-500',
+                                ? 'bg-zinc-300 dark:bg-surface-600 border-zinc-500 dark:border-surface-500'
+                                : 'bg-zinc-200 dark:bg-surface-700 text-zinc-600 dark:text-zinc-400 border-zinc-400 dark:border-surface-500 hover:border-zinc-500',
                           ].join(' ')}
                         >
                           {sel && (
-                            <svg className="inline w-2.5 h-2.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <svg
+                              className="inline w-2.5 h-2.5 mr-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                            >
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
@@ -513,14 +526,14 @@ export function FileList() {
             }
 
             const { file: item, fileIndex: index } = row;
-            const ext           = getExtension(item.filename);
-            const color         = EXT_COLORS[ext] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/20';
-            const info          = sheetInfo[item.id];
+            const ext = getExtension(item.filename);
+            const color = EXT_COLORS[ext] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/20';
+            const info = sheetInfo[item.id];
             const hasMultiSheets = (info?.sheets.length ?? 0) > 1;
-            const sheetsOpen    = openSheets[item.id] ?? false;
-            const isSelected    = selectedIds.has(item.id);
+            const sheetsOpen = openSheets[item.id] ?? false;
+            const isSelected = selectedIds.has(item.id);
             const isPartOfMerge = mergingIds.has(item.id);
-            const filePreview   = selectionPreview.files.find((f) => f.fileId === item.id);
+            const filePreview = selectionPreview.files.find((f) => f.fileId === item.id);
             const noSheetsMatch = filePreview ? filePreview.totalSheets > 0 && filePreview.matchedSheets === 0 : false;
 
             return (
@@ -545,225 +558,285 @@ export function FileList() {
                   onMouseEnter={(e) => handleRowMouseEnter(item.id, e.currentTarget)}
                   onMouseLeave={handleRowMouseLeave}
                   className={[
-                  'relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all group overflow-visible',
-                  newlyAddedFileIds.includes(item.id) && 'file-added-flash border-emerald-500/30',
-                  noSheetsMatch && 'opacity-50',
-                  dragOver === index
-                    ? 'bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/40 scale-[1.01]'
-                    : isSelected
-                    ? 'bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/20'
-                    : hoveredId === item.id
-                    ? 'bg-zinc-200/80 dark:bg-surface-700/90 border-zinc-400 dark:border-surface-500'
-                    : 'bg-zinc-100 dark:bg-surface-800 border-zinc-300 dark:border-surface-600 hover:border-zinc-400 hover:bg-zinc-200/80 dark:hover:border-surface-500 dark:hover:bg-surface-700/90',
-                ].filter(Boolean).join(' ')}
-              >
-                {/* Fortschrittsbalken */}
-                {isPartOfMerge && isUploading && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-surface-600">
-                    <div className="h-full bg-emerald-500 transition-all duration-200 ease-out" style={{ width: `${Math.min(100, Math.round(uploadPct))}%` }} />
-                  </div>
-                )}
-                {isPartOfMerge && isProcessing && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] overflow-hidden">
-                    <div className="h-full w-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-shimmer" />
-                  </div>
-                )}
+                    'relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all group overflow-visible',
+                    newlyAddedFileIds.includes(item.id) && 'file-added-flash border-emerald-500/30',
+                    noSheetsMatch && 'opacity-50',
+                    dragOver === index
+                      ? 'bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/40 scale-[1.01]'
+                      : isSelected
+                        ? 'bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/20'
+                        : hoveredId === item.id
+                          ? 'bg-zinc-200/80 dark:bg-surface-700/90 border-zinc-400 dark:border-surface-500'
+                          : 'bg-zinc-100 dark:bg-surface-800 border-zinc-300 dark:border-surface-600 hover:border-zinc-400 hover:bg-zinc-200/80 dark:hover:border-surface-500 dark:hover:bg-surface-700/90',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {/* Fortschrittsbalken */}
+                  {isPartOfMerge && isUploading && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-surface-600">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-200 ease-out"
+                        style={{ width: `${Math.min(100, Math.round(uploadPct))}%` }}
+                      />
+                    </div>
+                  )}
+                  {isPartOfMerge && isProcessing && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[2px] overflow-hidden">
+                      <div className="h-full w-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-shimmer" />
+                    </div>
+                  )}
 
-                {/* Checkbox (immer bei Auswahl-Modus sichtbar, sonst bei Hover) */}
-                {!busy && (
-                  <button
-                    type="button"
-                    onClick={() => toggleSelect(item.id)}
-                    className={[
-                      'shrink-0 flex items-center justify-center w-4 h-4 rounded border transition-colors',
-                      isSelected
-                        ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-400'
-                        : anySelected
-                        ? 'border-surface-500 bg-surface-700 text-transparent hover:border-emerald-500/40'
-                        : 'border-transparent text-transparent opacity-0 group-hover:opacity-100 group-hover:border-surface-500 group-hover:bg-surface-700',
-                    ].join(' ')}
-                    title={isSelected ? 'Abwählen' : 'Auswählen'}
-                  >
-                    {isSelected && (
-                      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  {/* Checkbox (immer bei Auswahl-Modus sichtbar, sonst bei Hover) */}
+                  {!busy && (
+                    <button
+                      type="button"
+                      onClick={() => toggleSelect(item.id)}
+                      className={[
+                        'shrink-0 flex items-center justify-center w-4 h-4 rounded border transition-colors',
+                        isSelected
+                          ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-400'
+                          : anySelected
+                            ? 'border-surface-500 bg-surface-700 text-transparent hover:border-emerald-500/40'
+                            : 'border-transparent text-transparent opacity-0 group-hover:opacity-100 group-hover:border-surface-500 group-hover:bg-surface-700',
+                      ].join(' ')}
+                      title={isSelected ? 'Abwählen' : 'Auswählen'}
+                    >
+                      {isSelected && (
+                        <svg
+                          className="w-2.5 h-2.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Drag-Handle (versteckt wenn Auswahl aktiv) */}
+                  {!busy && !anySelected && isUploadOrder && (
+                    <span
+                      className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-500 dark:text-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none"
+                      title={t('files.reorder')}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M7 2a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2zm6-12a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2z" />
+                      </svg>
+                    </span>
+                  )}
+
+                  {/* Positions-Nummer */}
+                  <span className="shrink-0 text-xs font-mono text-zinc-500 dark:text-zinc-700 w-4 text-right select-none">
+                    {index + 1}
+                  </span>
+
+                  {/* Badge: History-Einträge mit Uhr-Icon */}
+                  {item.preUploadedId && !item.file ? (
+                    <span
+                      className="badge border bg-violet-500/15 text-violet-400 border-violet-500/20 shrink-0"
+                      title={t('history.fromHistory')}
+                    >
+                      <svg
+                        className="w-2.5 h-2.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span className={`badge border ${color} shrink-0`}>{ext.slice(1)}</span>
+                  )}
+
+                  {/* Dateiname (Vorschau wird per Portal über der Liste gerendert) */}
+                  <div className="flex-1 min-w-0">
+                    <span className="block truncate text-sm text-zinc-800 dark:text-zinc-200">{item.filename}</span>
+                  </div>
+
+                  {/* Badge: Sheets-Vorschau (immer anzeigen wenn Datei Sheets hat, Farbe: grau / blau / grün) */}
+                  {filePreview && filePreview.totalSheets > 0 && (
+                    <span
+                      className={[
+                        'shrink-0 text-xs font-medium transition-colors duration-150',
+                        getRatioColor(filePreview.matchedSheets, filePreview.totalSheets),
+                      ].join(' ')}
+                      title={t('files.sheetsSelected', {
+                        matched: filePreview.matchedSheets,
+                        total: filePreview.totalSheets,
+                      })}
+                    >
+                      {filePreview.matchedSheets} / {filePreview.totalSheets}
+                    </span>
+                  )}
+
+                  {/* Sheet-Auswahl-Toggle (öffnet feste Zeile direkt unter dieser Datei) */}
+                  {hasMultiSheets && !busy && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !sheetsOpen;
+                        setOpenSheets((p) => (next ? { [item.id]: true } : { ...p, [item.id]: false }));
+                      }}
+                      className={[
+                        'shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors',
+                        sheetsOpen
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 border border-transparent hover:border-zinc-400 dark:hover:border-surface-500',
+                      ].join(' ')}
+                      title={t('files.sheetsSelect')}
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+                      </svg>
+                      <span>
+                        {info.selected.length > 0 ? `${info.selected.length}/${info.sheets.length}` : t('files.sheets')}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Größe / Status */}
+                  {isDone ? (
+                    <span className="shrink-0 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500/20">
+                      <svg
+                        className="w-2.5 h-2.5 text-emerald-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
-                    )}
-                  </button>
-                )}
+                    </span>
+                  ) : isPartOfMerge && isProcessing ? (
+                    <span className="shrink-0 w-4 h-4 flex items-center justify-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    </span>
+                  ) : isPartOfMerge && isUploading ? (
+                    <span className="shrink-0 text-xs font-mono text-emerald-400 w-8 text-right tabular-nums">
+                      {Math.round(uploadPct)}%
+                    </span>
+                  ) : (
+                    <span className="shrink-0 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600">
+                      {item.lastModified ? (
+                        <span title={new Date(item.lastModified).toLocaleString()}>
+                          {formatFileDate(item.lastModified)}
+                        </span>
+                      ) : null}
+                      {item.size ? (
+                        <span>{formatSize(item.size)}</span>
+                      ) : item.preUploadedId ? (
+                        <span>{t('files.historyLabel')}</span>
+                      ) : null}
+                    </span>
+                  )}
 
-                {/* Drag-Handle (versteckt wenn Auswahl aktiv) */}
-                {!busy && !anySelected && isUploadOrder && (
-                  <span className="shrink-0 cursor-grab active:cursor-grabbing text-zinc-500 dark:text-zinc-700 hover:text-zinc-600 dark:hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none" title={t('files.reorder')}>
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M7 2a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2zm6-12a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2zm0 6a1 1 0 000 2 1 1 0 000-2z" />
-                    </svg>
-                  </span>
-                )}
-
-                {/* Positions-Nummer */}
-                <span className="shrink-0 text-xs font-mono text-zinc-500 dark:text-zinc-700 w-4 text-right select-none">{index + 1}</span>
-
-                {/* Badge: History-Einträge mit Uhr-Icon */}
-                {item.preUploadedId && !item.file ? (
-                  <span className="badge border bg-violet-500/15 text-violet-400 border-violet-500/20 shrink-0" title={t('history.fromHistory')}>
-                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </span>
-                ) : (
-                  <span className={`badge border ${color} shrink-0`}>{ext.slice(1)}</span>
-                )}
-
-                {/* Dateiname (Vorschau wird per Portal über der Liste gerendert) */}
-                <div className="flex-1 min-w-0">
-                  <span className="block truncate text-sm text-zinc-800 dark:text-zinc-200">{item.filename}</span>
+                  {/* Einzeln entfernen (ausgeblendet wenn Auswahl-Modus aktiv) */}
+                  {!busy && !anySelected && (
+                    <button
+                      type="button"
+                      onClick={() => removeFile(item.id)}
+                      className="shrink-0 p-1 rounded text-zinc-500 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                      title={t('files.removeTitle')}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-
-                {/* Badge: Sheets-Vorschau (immer anzeigen wenn Datei Sheets hat, Farbe: grau / blau / grün) */}
-                {filePreview && filePreview.totalSheets > 0 && (
-                  <span
-                    className={['shrink-0 text-xs font-medium transition-colors duration-150', getRatioColor(filePreview.matchedSheets, filePreview.totalSheets)].join(' ')}
-                    title={t('files.sheetsSelected', { matched: filePreview.matchedSheets, total: filePreview.totalSheets })}
-                  >
-                    {filePreview.matchedSheets} / {filePreview.totalSheets}
-                  </span>
-                )}
-
-                {/* Sheet-Auswahl-Toggle (öffnet feste Zeile direkt unter dieser Datei) */}
-                {hasMultiSheets && !busy && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !sheetsOpen;
-                      setOpenSheets((p) => (next ? { [item.id]: true } : { ...p, [item.id]: false }));
-                    }}
-                    className={[
-                      'shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors',
-                      sheetsOpen
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'text-zinc-500 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 border border-transparent hover:border-zinc-400 dark:hover:border-surface-500',
-                    ].join(' ')}
-                    title={t('files.sheetsSelect')}
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
-                    </svg>
-                    <span>{info.selected.length > 0 ? `${info.selected.length}/${info.sheets.length}` : t('files.sheets')}</span>
-                  </button>
-                )}
-
-                {/* Größe / Status */}
-                {isDone ? (
-                  <span className="shrink-0 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500/20">
-                    <svg className="w-2.5 h-2.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </span>
-                ) : isPartOfMerge && isProcessing ? (
-                  <span className="shrink-0 w-4 h-4 flex items-center justify-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  </span>
-                ) : isPartOfMerge && isUploading ? (
-                  <span className="shrink-0 text-xs font-mono text-emerald-400 w-8 text-right tabular-nums">{Math.round(uploadPct)}%</span>
-                ) : (
-                  <span className="shrink-0 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-600">
-                    {item.lastModified ? (
-                      <span title={new Date(item.lastModified).toLocaleString()}>{formatFileDate(item.lastModified)}</span>
-                    ) : null}
-                    {item.size ? (
-                      <span>{formatSize(item.size)}</span>
-                    ) : item.preUploadedId ? (
-                      <span>{t('files.historyLabel')}</span>
-                    ) : null}
-                  </span>
-                )}
-
-                {/* Einzeln entfernen (ausgeblendet wenn Auswahl-Modus aktiv) */}
-                {!busy && !anySelected && (
-                  <button
-                    type="button"
-                    onClick={() => removeFile(item.id)}
-                    className="shrink-0 p-1 rounded text-zinc-500 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                    title={t('files.removeTitle')}
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
               </div>
-
-              </div>
-          );
+            );
           })}
         </div>
       </div>
 
       {/* Hover-Vorschau: viewport-aware; bei geöffneter Sheet-Auswahl unter dem Panel, sonst unter der Zeile; pro Sheet wenn über Sheet-Button gehovert */}
-      {showPreview && hoveredId && hoveredRect && (() => {
-        const info = sheetInfo[hoveredId];
-        const preview = (hoveredSheetId && info?.sheets)
-          ? (info.sheets.find((s) => s.id === hoveredSheetId)?.previewRows ?? info.previewRows)
-          : info?.previewRows;
-        if (!preview || preview.length === 0) return null;
-        const hoveredSheetName = hoveredSheetId && info?.sheets?.find((s) => s.id === hoveredSheetId)?.name;
-        const win = typeof window !== 'undefined' ? window : null;
-        const anchorBottom = (hoverTarget === 'panel' || !openSheets[hoveredId])
-          ? hoveredRect.bottom
-          : hoveredRect.bottom + 6 + getSheetPanelRowHeight(sheetInfo[hoveredId]?.sheets?.length ?? 0) + 6;
-        const spaceBelow = win ? win.innerHeight - anchorBottom - PREVIEW_MARGIN : 400;
-        const showAbove = spaceBelow < PREVIEW_MAX_HEIGHT;
-        const left = win
-          ? Math.max(PREVIEW_MARGIN, Math.min(hoveredRect.left, win.innerWidth - PREVIEW_MAX_WIDTH - PREVIEW_MARGIN))
-          : hoveredRect.left;
-        const top = showAbove
-          ? Math.max(PREVIEW_MARGIN, hoveredRect.top - PREVIEW_MAX_HEIGHT - 8)
-          : anchorBottom + 6;
-        return (
-          <Portal>
-            <div
-              className="min-w-[300px] max-w-[520px] max-h-[280px] flex flex-col p-3 rounded-xl border border-slate-700/60 bg-slate-900/95 dark:bg-surface-900/95 backdrop-blur shadow-2xl pointer-events-none animate-fade-in"
-              style={{
-                position: 'fixed',
-                left,
-                top,
-                zIndex: Z_INDEX.OVERLAY,
-              }}
-            >
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5 shrink-0">
-                {hoveredSheetName
-                  ? t('files.previewSheetRows', { name: hoveredSheetName, n: preview.length })
-                  : preview.length === 1
-                  ? t('files.previewRow', { n: preview.length })
-                  : t('files.previewRows', { n: preview.length })}
-              </p>
-              <div className="overflow-auto min-h-0 flex-1">
-                <table className="text-xs border-collapse">
-                  <tbody>
-                    {preview.map((row, ri) => (
-                      <tr key={ri} className={ri === 0 ? 'bg-slate-800/80 dark:bg-surface-800' : ri % 2 === 0 ? 'bg-slate-800/50 dark:bg-surface-800/80' : ''}>
-                        {row.map((cell, ci) => (
-                          <td
-                            key={ci}
-                            className={[
-                              'px-1.5 py-0.5 border border-slate-700/50 dark:border-surface-700 max-w-[90px] truncate whitespace-nowrap',
-                              ri === 0 ? 'font-medium text-zinc-300 dark:text-zinc-300' : 'text-zinc-400 dark:text-zinc-500',
-                            ].join(' ')}
-                            title={cell}
-                          >
-                            {cell || <span className="text-zinc-500 dark:text-zinc-600">–</span>}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {showPreview &&
+        hoveredId &&
+        hoveredRect &&
+        (() => {
+          const info = sheetInfo[hoveredId];
+          const preview =
+            hoveredSheetId && info?.sheets
+              ? (info.sheets.find((s) => s.id === hoveredSheetId)?.previewRows ?? info.previewRows)
+              : info?.previewRows;
+          if (!preview || preview.length === 0) return null;
+          const hoveredSheetName = hoveredSheetId && info?.sheets?.find((s) => s.id === hoveredSheetId)?.name;
+          const win = typeof window !== 'undefined' ? window : null;
+          const anchorBottom =
+            hoverTarget === 'panel' || !openSheets[hoveredId]
+              ? hoveredRect.bottom
+              : hoveredRect.bottom + 6 + getSheetPanelRowHeight(sheetInfo[hoveredId]?.sheets?.length ?? 0) + 6;
+          const spaceBelow = win ? win.innerHeight - anchorBottom - PREVIEW_MARGIN : 400;
+          const showAbove = spaceBelow < PREVIEW_MAX_HEIGHT;
+          const left = win
+            ? Math.max(PREVIEW_MARGIN, Math.min(hoveredRect.left, win.innerWidth - PREVIEW_MAX_WIDTH - PREVIEW_MARGIN))
+            : hoveredRect.left;
+          const top = showAbove ? Math.max(PREVIEW_MARGIN, hoveredRect.top - PREVIEW_MAX_HEIGHT - 8) : anchorBottom + 6;
+          return (
+            <Portal>
+              <div
+                className="min-w-[300px] max-w-[520px] max-h-[280px] flex flex-col p-3 rounded-xl border border-slate-700/60 bg-slate-900/95 dark:bg-surface-900/95 backdrop-blur shadow-2xl pointer-events-none animate-fade-in"
+                style={{
+                  position: 'fixed',
+                  left,
+                  top,
+                  zIndex: Z_INDEX.OVERLAY,
+                }}
+              >
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1.5 shrink-0">
+                  {hoveredSheetName
+                    ? t('files.previewSheetRows', { name: hoveredSheetName, n: preview.length })
+                    : preview.length === 1
+                      ? t('files.previewRow', { n: preview.length })
+                      : t('files.previewRows', { n: preview.length })}
+                </p>
+                <div className="overflow-auto min-h-0 flex-1">
+                  <table className="text-xs border-collapse">
+                    <tbody>
+                      {preview.map((row, ri) => (
+                        <tr
+                          key={ri}
+                          className={
+                            ri === 0
+                              ? 'bg-slate-800/80 dark:bg-surface-800'
+                              : ri % 2 === 0
+                                ? 'bg-slate-800/50 dark:bg-surface-800/80'
+                                : ''
+                          }
+                        >
+                          {row.map((cell, ci) => (
+                            <td
+                              key={ci}
+                              className={[
+                                'px-1.5 py-0.5 border border-slate-700/50 dark:border-surface-700 max-w-[90px] truncate whitespace-nowrap',
+                                ri === 0
+                                  ? 'font-medium text-zinc-300 dark:text-zinc-300'
+                                  : 'text-zinc-400 dark:text-zinc-500',
+                              ].join(' ')}
+                              title={cell}
+                            >
+                              {cell || <span className="text-zinc-500 dark:text-zinc-600">–</span>}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          </Portal>
-        );
-      })()}
+            </Portal>
+          );
+        })()}
     </div>
   );
 }

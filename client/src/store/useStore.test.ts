@@ -58,10 +58,8 @@ describe('generateOutputFilename', () => {
   });
 
   it('eine Datei: Basisname + _merged', () => {
-    expect(generateOutputFilename([fileItem({ filename: 'Report.xlsx', id: '1' })], 'xlsx'))
-      .toBe('Report_merged.xlsx');
-    expect(generateOutputFilename([fileItem({ filename: 'Data.ods', id: '1' })], 'ods'))
-      .toBe('Data_merged.ods');
+    expect(generateOutputFilename([fileItem({ filename: 'Report.xlsx', id: '1' })], 'xlsx')).toBe('Report_merged.xlsx');
+    expect(generateOutputFilename([fileItem({ filename: 'Data.ods', id: '1' })], 'ods')).toBe('Data_merged.ods');
   });
 
   it('Datum im Namen: Monat Jahr oder Datumsbereich', () => {

@@ -3,12 +3,7 @@
  * Import über Workspace-Alias "shared".
  */
 import { describe, it, expect } from 'vitest';
-import {
-  validateExtension,
-  validateFileSize,
-  validateTotalSize,
-  getValidationErrorMessage,
-} from 'shared';
+import { validateExtension, validateFileSize, validateTotalSize, getValidationErrorMessage } from 'shared';
 
 describe('validateExtension', () => {
   it('akzeptiert .xlsx, .xls, .ods', () => {

@@ -7,9 +7,9 @@ import { useLocalMergeHistory } from '../hooks/useLocalMergeHistory';
 // Drag-Daten-Format für History → FileList
 export const HISTORY_DRAG_TYPE = 'application/x-eXmerg-history';
 
-const STORAGE_KEY  = 'mergeHistory_v1';
-const HISTORY_MAX  = 10;
-const HISTORY_TTL  = 30 * 60 * 1000; // 30 Min – wie Server-TTL
+const STORAGE_KEY = 'mergeHistory_v1';
+const HISTORY_MAX = 10;
+const HISTORY_TTL = 30 * 60 * 1000; // 30 Min – wie Server-TTL
 
 // ── localStorage-Helfer ───────────────────────────────────────────────────────
 
@@ -17,8 +17,13 @@ export function getLocalHistory(): HistoryEntry[] {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as HistoryEntry[];
     // Nur Einträge innerhalb der TTL zurückgeben
-    return raw.filter((e) => Date.now() - e.timestamp < HISTORY_TTL).slice(-HISTORY_MAX).reverse();
-  } catch { return []; }
+    return raw
+      .filter((e) => Date.now() - e.timestamp < HISTORY_TTL)
+      .slice(-HISTORY_MAX)
+      .reverse();
+  } catch {
+    return [];
+  }
 }
 
 export function addToLocalHistory(entry: HistoryEntry): void {
@@ -28,14 +33,18 @@ export function addToLocalHistory(entry: HistoryEntry): void {
     fresh.push(entry);
     if (fresh.length > HISTORY_MAX) fresh.splice(0, fresh.length - HISTORY_MAX);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
-  } catch { /* localStorage nicht verfügbar */ }
+  } catch {
+    /* localStorage nicht verfügbar */
+  }
 }
 
 /** Verlaufsliste im localStorage leeren (Einträge + Metadaten). */
 export function clearLocalHistory(): void {
   try {
     localStorage.setItem(STORAGE_KEY, '[]');
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Einzelnen Verlaufseintrag aktualisieren (z. B. size nach Blob-Download). */
@@ -47,14 +56,16 @@ export function updateLocalHistoryEntry(id: string, patch: Partial<HistoryEntry>
       Object.assign(entry, patch);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(raw));
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ── Komponente ────────────────────────────────────────────────────────────────
 
 function timeAgo(t: (key: string, vars?: Record<string, number>) => string, ts: number): string {
   const sec = Math.floor((Date.now() - ts) / 1000);
-  if (sec < 5)  return t('history.justNow');
+  if (sec < 5) return t('history.justNow');
   if (sec < 60) return t('history.secAgo', { n: sec });
   if (sec < 3600) return t('history.minAgo', { n: Math.floor(sec / 60) });
   return t('history.hourAgo', { n: Math.floor(sec / 3600) });
@@ -103,17 +114,23 @@ export function DownloadHistory() {
     <div className="space-y-2 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <svg className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg
+          className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-600 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <span className="text-xs font-medium text-zinc-600 uppercase tracking-wide">{t('history.title')}</span>
         <div className="h-px flex-1 bg-zinc-300 dark:bg-surface-700" />
-        <span className="text-xs text-zinc-500 dark:text-zinc-700">{entries.length} {entries.length === 1 ? t('history.entry') : t('history.entries')}</span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-700">
+          {entries.length} {entries.length === 1 ? t('history.entry') : t('history.entries')}
+        </span>
       </div>
 
-      <p className="text-[11px] text-zinc-500 dark:text-zinc-600 leading-snug">
-        {t('history.privacy')}
-      </p>
+      <p className="text-[11px] text-zinc-500 dark:text-zinc-600 leading-snug">{t('history.privacy')}</p>
 
       {/* Speicheranzeige + Clear */}
       {!idbLoading && totalSize >= 0 && (
@@ -144,9 +161,10 @@ export function DownloadHistory() {
           const hasLocal = hasLocalBlob(entry.id);
 
           const ext = entry.filename.split('.').pop()?.toLowerCase() ?? 'xlsx';
-          const extColor = ext === 'ods'
-            ? 'bg-sky-500/15 text-sky-400 border-sky-500/20'
-            : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
+          const extColor =
+            ext === 'ods'
+              ? 'bg-sky-500/15 text-sky-400 border-sky-500/20'
+              : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
 
           return (
             <li
@@ -196,7 +214,11 @@ export function DownloadHistory() {
                   title={t('history.downloadTitle')}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
                   </svg>
                   <span className="hidden sm:inline">{t('history.downloadTitle')}</span>
                 </button>
@@ -211,7 +233,11 @@ export function DownloadHistory() {
                   title={t('history.downloadTitle')}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
                   </svg>
                   <span className="hidden sm:inline">{t('history.download')}</span>
                 </a>
@@ -230,7 +256,11 @@ export function DownloadHistory() {
                   title={t('history.delete')}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4m1 4h6M4 7h16" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4m1 4h6M4 7h16"
+                    />
                   </svg>
                   <span className="hidden sm:inline">{t('history.delete')}</span>
                 </button>

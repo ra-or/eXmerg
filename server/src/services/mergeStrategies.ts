@@ -15,10 +15,7 @@ export type SheetSource = {
  */
 export interface MergeStrategy {
   mode: MergeMode;
-  execute(
-    sources: SheetSource[],
-    options: SpreadsheetMergeOptions
-  ): Promise<{ workbook: ExcelJS.Workbook }>;
+  execute(sources: SheetSource[], options: SpreadsheetMergeOptions): Promise<{ workbook: ExcelJS.Workbook }>;
 }
 
 /** A: Alle Dateien → eine Tabelle, Spalten-Union, fehlende Werte leer. */

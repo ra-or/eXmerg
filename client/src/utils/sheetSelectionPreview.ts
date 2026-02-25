@@ -70,9 +70,7 @@ export function evaluateSheetSelection(
       );
     } else if (mode === 'selected' && globalSelected?.length) {
       const maxIdx = sheets.length - 1;
-      candidateIndices = globalSelected.filter(
-        (i) => Number.isInteger(i) && i >= 0 && i <= maxIdx,
-      );
+      candidateIndices = globalSelected.filter((i) => Number.isInteger(i) && i >= 0 && i <= maxIdx);
     } else {
       candidateIndices = sheets.map((s) => s.index);
     }

@@ -84,10 +84,10 @@ export type MergeApiResponse = MergeResponse | MergeJobResponse | MergeErrorResp
 // ─── SSE Progress Events ──────────────────────────────────────────────────────
 
 export type MergeProgressEvent =
-  | { type: 'queued';   position: number }
+  | { type: 'queued'; position: number }
   | { type: 'progress'; pct: number; msg: string }
   | { type: 'complete'; downloadUrl: string; filename: string; warnings: string[] }
-  | { type: 'error';    message: string };
+  | { type: 'error'; message: string };
 
 export interface MergeRequestOptions {
   options: MergeOptions;
