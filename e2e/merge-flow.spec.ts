@@ -140,6 +140,24 @@ test.describe('UI Interactions', () => {
   });
 });
 
+test.describe('Output Format', () => {
+  test('merge with ODS output format', async ({ page }) => {
+    await page.goto('/');
+    await uploadBothFiles(page);
+
+    // Switch output format to ODS
+    const odsButton = page.locator('button[role="radio"]').filter({ hasText: '.ods' });
+    await odsButton.click();
+    await expect(odsButton).toHaveAttribute('aria-checked', 'true');
+
+    // Use default merge mode and merge
+    await runMerge(page);
+
+    // Success: download button visible, filename should be .ods
+    await expect(page.getByRole('button', { name: /^Herunterladen$|^Download$/i })).toBeVisible();
+  });
+});
+
 test.describe('API Health', () => {
   test('backend health endpoint returns ok', async ({ request }) => {
     const response = await request.get('http://localhost:3004/api/health');
