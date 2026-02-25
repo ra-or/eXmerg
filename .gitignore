@@ -26,3 +26,7 @@ uploads/
 
 # backups
 *.zip
+
+# playwright
+test-results/
+playwright-report/

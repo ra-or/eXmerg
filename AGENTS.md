@@ -13,9 +13,15 @@
 
 ### Testing
 
-- `npm test` runs both client (vitest) and server (vitest) tests.
-- Server tests: `npm run test --prefix server` (11 tests, all passing).
-- Client tests: `npm run test:run --prefix client` (64 tests; 3 pre-existing failures in `shared-generateWorksheetName.test.ts` and `MergePage.test.tsx`).
+- `npm test` runs both client (vitest) and server (vitest) unit tests (75 total).
+- `npm run test:e2e` runs Playwright E2E tests (requires `npx playwright install chromium` once).
+- E2E tests use fixture files in `e2e/fixtures/files/`; the dev servers must be running or Playwright starts them automatically via `webServer` config.
+
+### Linting & Formatting
+
+- `npm run lint` runs ESLint (flat config in `eslint.config.mjs`).
+- `npm run format:check` / `npm run format` checks/applies Prettier formatting.
+- Lint currently produces warnings only (0 errors): `react-hooks/exhaustive-deps`, `react-refresh/only-export-components`, `@typescript-eslint/no-explicit-any` (ExcelJS workarounds).
 
 ### Building
 
@@ -25,4 +31,4 @@
 
 - The backend health endpoint is `GET /api/health` (returns `ok`).
 - Uploaded files go to `<project-root>/uploads/` (auto-created). No persistent state or database.
-- There is no ESLint or dedicated lint script configured in this project.
+- The `xlsx` (SheetJS) dependency has a known prototype-pollution vulnerability with no available fix; this is a known limitation.
