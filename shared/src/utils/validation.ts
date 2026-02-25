@@ -39,7 +39,7 @@ function formatMb(bytes: number): string {
  */
 export function getValidationErrorMessage(
   reason: 'extension' | 'size' | 'count' | 'totalSize',
-  limits?: ValidationLimitOptions
+  limits?: ValidationLimitOptions,
 ): string {
   switch (reason) {
     case 'extension':

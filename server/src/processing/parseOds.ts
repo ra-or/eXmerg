@@ -20,8 +20,8 @@ export interface OdsSheet {
  * (z. B. "-13.797,37 €") nicht falsch interpretiert wird.
  */
 export interface OdsCellRich {
-  text: string;           // Anzeigetext (text:p Inhalt)
-  numericValue?: number;  // office:value wenn Typ float/currency/percentage
+  text: string; // Anzeigetext (text:p Inhalt)
+  numericValue?: number; // office:value wenn Typ float/currency/percentage
 }
 
 export interface OdsSheetRich {
@@ -93,8 +93,8 @@ function getRepeated(tag: string, kind: 'columns' | 'rows'): number {
  */
 interface Token {
   type: 'open' | 'close' | 'selfclose' | 'text';
-  raw: string;       // der rohe Tag-String inkl. < >
-  local: string;     // lokaler Name (ohne Namespace)
+  raw: string; // der rohe Tag-String inkl. < >
+  local: string; // lokaler Name (ohne Namespace)
 }
 
 function tokenize(xml: string): Token[] {
@@ -151,8 +151,8 @@ function parseContentXml(xml: string): OdsSheet[] {
   let currentSheet: OdsSheet | null = null;
   let currentRow: string[] = [];
   let currentCellText = '';
-  let currentCellValue = '';  // office:value / office:date-value etc.
-  let currentCellType = '';   // office:value-type
+  let currentCellValue = ''; // office:value / office:date-value etc.
+  let currentCellType = ''; // office:value-type
   let cellRepeat = 1;
   let rowRepeat = 1;
 
@@ -185,11 +185,12 @@ function parseContentXml(xml: string): OdsSheet[] {
             inCell = true;
             currentCellText = '';
             currentCellType = getAttribute(tok.raw, 'value-type');
-            currentCellValue = getAttribute(tok.raw, 'value') ||
-                               getAttribute(tok.raw, 'date-value') ||
-                               getAttribute(tok.raw, 'time-value') ||
-                               getAttribute(tok.raw, 'boolean-value') ||
-                               getAttribute(tok.raw, 'string-value');
+            currentCellValue =
+              getAttribute(tok.raw, 'value') ||
+              getAttribute(tok.raw, 'date-value') ||
+              getAttribute(tok.raw, 'time-value') ||
+              getAttribute(tok.raw, 'boolean-value') ||
+              getAttribute(tok.raw, 'string-value');
             cellRepeat = getRepeated(tok.raw, 'columns');
           }
           // Selbst-schließende Zelle: direkt als Leerstring abschließen
@@ -294,11 +295,7 @@ function resolveCellValue(type: string, officeValue: string, textContent: string
  * Numerische Typen: 'float', 'currency', 'percentage' → office:value ist immer
  * ein Standard-Dezimalzahl (Punkt als Trennzeichen, kein Tausender-Separator).
  */
-function resolveCellValueRich(
-  type: string,
-  officeValue: string,
-  textContent: string
-): OdsCellRich {
+function resolveCellValueRich(type: string, officeValue: string, textContent: string): OdsCellRich {
   const text = textContent || officeValue || '';
   let numericValue: number | undefined;
   if (officeValue && (type === 'float' || type === 'currency' || type === 'percentage')) {
@@ -404,7 +401,7 @@ function parseContentXmlRich(xml: string): OdsSheetRich[] {
             while (
               currentSheet.rows.length > 0 &&
               (currentSheet.rows[currentSheet.rows.length - 1] ?? []).every(
-                (c) => c.text === '' && c.numericValue === undefined
+                (c) => c.text === '' && c.numericValue === undefined,
               )
             ) {
               currentSheet.rows.pop();

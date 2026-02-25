@@ -9,10 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { config } from '../config/index.js';
 import { getSheetInfo } from '../services/mergeService.js';
-import type {
-  MergeOptions, MergeErrorResponse, SheetsResponse,
-  MergeJobResponse, MergeProgressEvent,
-} from 'shared';
+import type { MergeOptions, MergeErrorResponse, SheetsResponse, MergeJobResponse, MergeProgressEvent } from 'shared';
 import { isSpreadsheetFile } from 'shared';
 import { validateExtension, validateFileSize, validateTotalSize, getValidationErrorMessage } from 'shared';
 import { mergeOptionsSchema, downloadQuerySchema } from '../validation/schemas.js';
@@ -39,7 +36,11 @@ function emitJobEvent(jobId: string, event: MergeProgressEvent): void {
   const payload = 'data: ' + JSON.stringify(event) + '\n\n';
   job.events.push(payload);
   for (const client of job.clients) {
-    try { client.write(payload); } catch { /* client disconnected */ }
+    try {
+      client.write(payload);
+    } catch {
+      /* client disconnected */
+    }
   }
 }
 
@@ -55,13 +56,17 @@ setInterval(() => {
 
 // ── Worker-Queue (max. MAX_WORKERS parallel) ──────────────────────────────────
 let runningWorkers = 0;
-const MAX_WORKERS  = 2;
+const MAX_WORKERS = 2;
 const workerQueue: Array<() => void> = [];
 
 function releaseWorkerSlot(): void {
   const next = workerQueue.shift();
-  if (next) { runningWorkers--; next(); }
-  else { runningWorkers--; }
+  if (next) {
+    runningWorkers--;
+    next();
+  } else {
+    runningWorkers--;
+  }
 }
 
 // Slot holen + bei Bedarf queued-Event emittieren
@@ -73,7 +78,10 @@ async function waitForWorkerSlot(jobId: string): Promise<void> {
   const position = workerQueue.length + 1;
   emitJobEvent(jobId, { type: 'queued', position });
   await new Promise<void>((resolve) => {
-    workerQueue.push(() => { runningWorkers++; resolve(); });
+    workerQueue.push(() => {
+      runningWorkers++;
+      resolve();
+    });
   });
 }
 
@@ -84,7 +92,7 @@ const __serverRoot = path.join(__routesDir, '..', '..');
 function getWorkerExecArgs(
   workerScript: string,
   inputJsonPath: string,
-  isDev: boolean
+  isDev: boolean,
 ): { execPath: string; args: string[] } {
   const execPath = process.execPath;
   if (isDev) {
@@ -136,7 +144,11 @@ function runMergeWorker(
         settled = true;
         child?.kill('SIGKILL');
         cleanup();
-        reject(new Error('Merge-Timeout: Verarbeitung dauerte zu lange (>5 Min). Bitte weniger Dateien gleichzeitig mergen.'));
+        reject(
+          new Error(
+            'Merge-Timeout: Verarbeitung dauerte zu lange (>5 Min). Bitte weniger Dateien gleichzeitig mergen.',
+          ),
+        );
       }, TIMEOUT_MS);
 
       let stderrBuf = '';
@@ -156,7 +168,9 @@ function runMergeWorker(
             try {
               const { pct, msg } = JSON.parse(line.slice(9)) as { pct: number; msg: string };
               onProgress?.(pct, msg);
-            } catch { /* ignorieren */ }
+            } catch {
+              /* ignorieren */
+            }
           } else if (line.startsWith('WARNINGS:')) {
             warningsBuf = line.slice(9);
           }
@@ -164,7 +178,10 @@ function runMergeWorker(
       });
 
       function cleanup() {
-        if (timer) { clearTimeout(timer); timer = null; }
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
         fs.unlink(inputJsonPath).catch(() => {});
       }
 
@@ -181,7 +198,11 @@ function runMergeWorker(
         if (code === 0) {
           const warnings: string[] = [];
           if (warningsBuf) {
-            try { warnings.push(...(JSON.parse(warningsBuf) as string[])); } catch { /* ignorieren */ }
+            try {
+              warnings.push(...(JSON.parse(warningsBuf) as string[]));
+            } catch {
+              /* ignorieren */
+            }
           }
           resolve({ warnings });
         } else {
@@ -205,7 +226,10 @@ function runMergeWorker(
   const kill = () => {
     if (settled || !child) return;
     settled = true;
-    if (timer) { clearTimeout(timer); timer = null; }
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
     child.kill('SIGKILL');
     fs.unlink(inputJsonPath).catch(() => {});
   };
@@ -219,8 +243,7 @@ const uploadDir = config.uploadDir;
 // ── Disk-Storage: Dateien nie im RAM, direkt auf Platte ──────────────────────
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) =>
-    cb(null, uuidv4() + path.extname(file.originalname).toLowerCase()),
+  filename: (_req, file, cb) => cb(null, uuidv4() + path.extname(file.originalname).toLowerCase()),
 });
 
 const upload = multer({
@@ -257,7 +280,10 @@ router.post(
     await ensureUploadDir();
     const multerSingle = upload.single('file');
     await new Promise<void>((resolve, reject) => {
-      multerSingle(req, res, (err: unknown) => { if (err) reject(err); else resolve(); });
+      multerSingle(req, res, (err: unknown) => {
+        if (err) reject(err);
+        else resolve();
+      });
     });
 
     const file = (req as Request & { file?: Express.Multer.File }).file;
@@ -274,31 +300,43 @@ router.post(
     } finally {
       await cleanupFiles([file.path]);
     }
-  })
+  }),
 );
 
 /** GET /api/progress/:mergeId – SSE-Stream für Merge-Fortschritt. */
 router.get('/progress/:mergeId', (req: Request, res: Response) => {
   const { mergeId } = req.params as { mergeId: string };
   const job = activeJobs.get(mergeId);
-  if (!job) { res.status(404).json({ error: 'Job nicht gefunden.' }); return; }
+  if (!job) {
+    res.status(404).json({ error: 'Job nicht gefunden.' });
+    return;
+  }
 
-  res.setHeader('Content-Type',  'text/event-stream');
+  res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection',    'keep-alive');
+  res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   // Gepufferte Events nachholen
   for (const payload of job.events) {
-    try { res.write(payload); } catch { break; }
+    try {
+      res.write(payload);
+    } catch {
+      break;
+    }
   }
 
-  if (job.status === 'done' || job.status === 'error') { res.end(); return; }
+  if (job.status === 'done' || job.status === 'error') {
+    res.end();
+    return;
+  }
 
   // Live-Abo
   job.clients.add(res);
-  req.on('close', () => { job.clients.delete(res); });
+  req.on('close', () => {
+    job.clients.delete(res);
+  });
 });
 
 /**
@@ -311,7 +349,10 @@ router.post(
     await ensureUploadDir();
     const multerSingle = upload.single('file');
     await new Promise<void>((resolve, reject) => {
-      multerSingle(req, res, (err: unknown) => { if (err) reject(err); else resolve(); });
+      multerSingle(req, res, (err: unknown) => {
+        if (err) reject(err);
+        else resolve();
+      });
     });
 
     const file = (req as Request & { file?: Express.Multer.File }).file;
@@ -337,7 +378,7 @@ router.post(
     }
 
     res.json({ fileId: path.basename(file.path), filename: file.originalname });
-  })
+  }),
 );
 
 /** POST /api/merge – Merge ausführen, Download-URL zurückgeben. */
@@ -374,22 +415,31 @@ router.post(
       const result = mergeOptionsSchema.safeParse(parsed);
       if (!result.success) {
         const first = result.error.flatten().fieldErrors;
-        const msg = typeof first.mode?.[0] === 'string' ? first.mode[0]
-          : typeof first.outputType?.[0] === 'string' ? first.outputType[0]
-          : result.error.errors[0]?.message ?? 'Ungültige Merge-Optionen.';
+        const msg =
+          typeof first.mode?.[0] === 'string'
+            ? first.mode[0]
+            : typeof first.outputType?.[0] === 'string'
+              ? first.outputType[0]
+              : (result.error.errors[0]?.message ?? 'Ungültige Merge-Optionen.');
         res.status(400).json({ success: false, error: msg } as MergeErrorResponse);
         return;
       }
       options = result.data as MergeOptions;
     } catch {
-      res.status(400).json({ success: false, error: 'Ungültige Merge-Optionen (kein gültiges JSON).' } as MergeErrorResponse);
+      res
+        .status(400)
+        .json({ success: false, error: 'Ungültige Merge-Optionen (kein gültiges JSON).' } as MergeErrorResponse);
       return;
     }
 
     // ── Dateiquellen auflösen: entweder vorab hochgeladen (fileIds) oder direkt ──
-    interface ResolvedFile { path: string; originalname: string; size: number; }
-    let resolvedFiles: ResolvedFile[] = [];
-    let uploadedPaths: string[] = [];     // werden am Ende immer gelöscht
+    interface ResolvedFile {
+      path: string;
+      originalname: string;
+      size: number;
+    }
+    const resolvedFiles: ResolvedFile[] = [];
+    let uploadedPaths: string[] = []; // werden am Ende immer gelöscht
 
     const fileIdsStr = r.body?.fileIds;
     if (fileIdsStr) {
@@ -397,7 +447,7 @@ router.post(
       let fileIds: string[];
       let fileNames: string[];
       try {
-        fileIds  = JSON.parse(fileIdsStr) as string[];
+        fileIds = JSON.parse(fileIdsStr) as string[];
         fileNames = JSON.parse(r.body?.fileNames ?? '[]') as string[];
       } catch {
         res.status(400).json({ success: false, error: 'Ungültige fileIds.' } as MergeErrorResponse);
@@ -484,7 +534,13 @@ router.post(
         if (job.cancelled) {
           job.status = 'error';
           emitJobEvent(mergeId, { type: 'error', message: 'Merge abgebrochen.' });
-          for (const c of job.clients) { try { c.end(); } catch { /* ignore */ } }
+          for (const c of job.clients) {
+            try {
+              c.end();
+            } catch {
+              /* ignore */
+            }
+          }
           job.clients.clear();
           releaseWorkerSlot();
           await cleanupFiles(uploadedPaths);
@@ -513,62 +569,79 @@ router.post(
         const { warnings } = await promise;
 
         const finalFileId = isOds ? xlsxFileId.replace('.xlsx', '.ods') : xlsxFileId;
-        const ext  = isOds ? '.ods' : '.xlsx';
-        const outFilename = clientFilename || ('merged' + ext);
+        const ext = isOds ? '.ods' : '.xlsx';
+        const outFilename = clientFilename || 'merged' + ext;
         const downloadUrl =
-          '/api/download?id=' + encodeURIComponent(finalFileId) +
-          '&name=' + encodeURIComponent(outFilename) +
+          '/api/download?id=' +
+          encodeURIComponent(finalFileId) +
+          '&name=' +
+          encodeURIComponent(outFilename) +
           (isOds ? '&fmt=ods' : '');
 
         job.status = 'done';
         emitJobEvent(mergeId, { type: 'complete', downloadUrl, filename: outFilename, warnings });
         // SSE-Clients schließen
-        for (const c of job.clients) { try { c.end(); } catch { /* ignore */ } }
+        for (const c of job.clients) {
+          try {
+            c.end();
+          } catch {
+            /* ignore */
+          }
+        }
         job.clients.clear();
       } catch (err) {
         job.status = 'error';
         const msg = err instanceof Error ? err.message : 'Merge fehlgeschlagen.';
         emitJobEvent(mergeId, { type: 'error', message: msg });
-        for (const c of job.clients) { try { c.end(); } catch { /* ignore */ } }
+        for (const c of job.clients) {
+          try {
+            c.end();
+          } catch {
+            /* ignore */
+          }
+        }
         job.clients.clear();
       } finally {
         releaseWorkerSlot();
         await cleanupFiles(uploadedPaths);
       }
     })();
-  })
+  }),
 );
 
 /** DELETE /api/merge/:mergeId/cancel – laufenden Merge abbrechen. */
-router.delete(
-  '/merge/:mergeId/cancel',
-  (req: Request, res: Response) => {
-    const { mergeId } = req.params;
-    const job = activeJobs.get(mergeId);
-    if (!job) {
-      res.status(404).json({ success: false, error: 'Job nicht gefunden oder bereits beendet.' });
-      return;
-    }
-    if (job.status !== 'running' && job.status !== 'queued') {
-      res.status(400).json({ success: false, error: 'Merge kann nur während der Verarbeitung abgebrochen werden.' });
-      return;
-    }
-    if (job.status === 'queued') {
-      job.cancelled = true;
-      res.json({ success: true });
-      return;
-    }
-    if (job.kill) {
-      job.kill();
-      job.status = 'error';
-      job.kill = undefined;
-      emitJobEvent(mergeId, { type: 'error', message: 'Merge abgebrochen.' });
-      for (const c of job.clients) { try { c.end(); } catch { /* ignore */ } }
-      job.clients.clear();
-    }
-    res.json({ success: true });
+router.delete('/merge/:mergeId/cancel', (req: Request, res: Response) => {
+  const { mergeId } = req.params;
+  const job = activeJobs.get(mergeId);
+  if (!job) {
+    res.status(404).json({ success: false, error: 'Job nicht gefunden oder bereits beendet.' });
+    return;
   }
-);
+  if (job.status !== 'running' && job.status !== 'queued') {
+    res.status(400).json({ success: false, error: 'Merge kann nur während der Verarbeitung abgebrochen werden.' });
+    return;
+  }
+  if (job.status === 'queued') {
+    job.cancelled = true;
+    res.json({ success: true });
+    return;
+  }
+  if (job.kill) {
+    job.kill();
+    job.status = 'error';
+    job.kill = undefined;
+    emitJobEvent(mergeId, { type: 'error', message: 'Merge abgebrochen.' });
+    for (const c of job.clients) {
+      try {
+        c.end();
+      } catch {
+        /* ignore */
+      }
+    }
+    job.clients.clear();
+  }
+  res.json({ success: true });
+});
 
 /** GET /api/download – Temp-Datei per ID ausliefern. */
 router.get(
@@ -649,7 +722,7 @@ router.get(
     });
 
     stream.pipe(res);
-  })
+  }),
 );
 
 export default router;

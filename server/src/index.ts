@@ -15,8 +15,7 @@ const clientDistPath = path.resolve(__dirname, '../../client/dist');
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err.message);
   // Nur bei echtem OOM neu starten (tsx watch erkennt den Exit-Code)
-  if ((err as NodeJS.ErrnoException).code === 'ERR_WORKER_OUT_OF_MEMORY' ||
-      err.message.includes('out of memory')) {
+  if ((err as NodeJS.ErrnoException).code === 'ERR_WORKER_OUT_OF_MEMORY' || err.message.includes('out of memory')) {
     console.error('Heap-Limit erreicht – Prozess wird sauber beendet.');
     process.exit(1);
   }

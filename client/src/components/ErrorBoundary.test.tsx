@@ -15,7 +15,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <span data-testid="child">OK</span>
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(screen.getByTestId('child')).toHaveTextContent('OK');
   });
@@ -25,7 +25,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <Thrower message="Testfehler" />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(screen.getByText('Testfehler')).toBeInTheDocument();
     expect(screen.getByRole('button')).toBeInTheDocument();

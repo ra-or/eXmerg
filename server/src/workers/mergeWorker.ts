@@ -110,7 +110,11 @@ try {
       if (unzipResult.status === 0) {
         console.log('[merge] unzip -t OK');
       } else {
-        console.error('[merge] unzip -t FAILED (exit', unzipResult.status + '):', (unzipResult.stderr || unzipResult.stdout || '').slice(0, 500));
+        console.error(
+          '[merge] unzip -t FAILED (exit',
+          unzipResult.status + '):',
+          (unzipResult.stderr || unzipResult.stdout || '').slice(0, 500),
+        );
       }
     }
   } catch (e) {
@@ -122,7 +126,9 @@ try {
     const warnRaw = await readFile(warningsPath(payload.outputFilePath), 'utf-8');
     process.stdout.write('WARNINGS:' + warnRaw + '\n');
     await unlink(warningsPath(payload.outputFilePath));
-  } catch { /* keine Warnings-Datei = alles OK */ }
+  } catch {
+    /* keine Warnings-Datei = alles OK */
+  }
 
   process.exit(0);
 } catch (err: unknown) {

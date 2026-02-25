@@ -98,7 +98,7 @@ function copyColumnWidths(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): void
     } | null>;
   };
 
-  const internalCols = ((src as unknown as WsWithCols)._columns) ?? [];
+  const internalCols = (src as unknown as WsWithCols)._columns ?? [];
   const maxCol = Math.max(src.columnCount || 0, internalCols.length);
 
   for (let c = 1; c <= maxCol; c++) {
@@ -110,7 +110,9 @@ function copyColumnWidths(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): void
       if (srcCol.style && Object.keys(srcCol.style).length > 0) {
         destCol.style = cloneStyle(srcCol.style) as ExcelJS.Style;
       }
-    } catch { /* nicht zugänglich */ }
+    } catch {
+      /* nicht zugänglich */
+    }
   }
 
   for (const col of internalCols) {
@@ -122,7 +124,9 @@ function copyColumnWidths(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): void
       if (col.style && Object.keys(col.style).length > 0) {
         destCol.style = cloneStyle(col.style) as ExcelJS.Style;
       }
-    } catch { /* ignorieren */ }
+    } catch {
+      /* ignorieren */
+    }
   }
 }
 
@@ -135,17 +139,29 @@ function copyColumnWidths(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): void
 export function copyWorksheet(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): void {
   // Worksheet-Eigenschaften
   if (src.properties) {
-    try { dest.properties = { ...src.properties }; } catch { /* ignore */ }
+    try {
+      dest.properties = { ...src.properties };
+    } catch {
+      /* ignore */
+    }
   }
 
   // Views (eingefrorene Zeilen / Spalten)
   if (Array.isArray(src.views) && src.views.length > 0) {
-    try { dest.views = src.views.map((v) => ({ ...v })); } catch { /* ignore */ }
+    try {
+      dest.views = src.views.map((v) => ({ ...v }));
+    } catch {
+      /* ignore */
+    }
   }
 
   // Seiteneinrichtung
   if (src.pageSetup) {
-    try { dest.pageSetup = { ...src.pageSetup }; } catch { /* ignore */ }
+    try {
+      dest.pageSetup = { ...src.pageSetup };
+    } catch {
+      /* ignore */
+    }
   }
 
   copyColumnWidths(src, dest);
@@ -160,7 +176,7 @@ export function copyWorksheet(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): 
 export function copyWorksheetCells(
   src: ExcelJS.Worksheet,
   dest: ExcelJS.Worksheet,
-  getValue: (cell: ExcelJS.Cell, row: number, col: number) => ExcelJS.CellValue
+  getValue: (cell: ExcelJS.Cell, row: number, col: number) => ExcelJS.CellValue,
 ): void {
   src.eachRow({ includeEmpty: true }, (srcRow, rowNum) => {
     const destRow = dest.getRow(rowNum);
@@ -171,7 +187,9 @@ export function copyWorksheetCells(
     if (rowStyle && Object.keys(rowStyle).length > 0) {
       try {
         (destRow as unknown as { style?: Partial<ExcelJS.Style> }).style = cloneStyle(rowStyle) as ExcelJS.Style;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
@@ -181,13 +199,13 @@ export function copyWorksheetCells(
       destCell.value = getValue(srcCell, rowNum, colNum);
 
       const cellStyle = srcCell.style;
-      const style = cellStyle && Object.keys(cellStyle).length > 0
-        ? cellStyle
-        : rowStyle;
+      const style = cellStyle && Object.keys(cellStyle).length > 0 ? cellStyle : rowStyle;
       if (style && Object.keys(style).length > 0) {
         try {
           destCell.style = cloneStyle(style) as ExcelJS.Style;
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     });
 
@@ -214,6 +232,8 @@ export function applyMerges(src: ExcelJS.Worksheet, dest: ExcelJS.Worksheet): vo
     if (dims.top === dims.bottom && dims.left === dims.right) continue;
     try {
       dest.mergeCells(dims.top, dims.left, dims.bottom, dims.right);
-    } catch { /* überspringen */ }
+    } catch {
+      /* überspringen */
+    }
   }
 }

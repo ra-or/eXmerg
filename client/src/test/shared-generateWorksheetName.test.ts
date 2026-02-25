@@ -146,7 +146,7 @@ describe('generateWorksheetName', () => {
       sheetCountInFile: 2,
       existingNames: used,
     });
-    expect(name).not.toMatch(/[\[\]:*?/\\]/);
+    expect(name).not.toMatch(/[[\]:*?/\\]/);
   });
 
   it('empty sheet name fallback → fileBaseName', () => {

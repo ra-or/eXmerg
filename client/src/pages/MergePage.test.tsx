@@ -9,7 +9,7 @@ function renderMergePage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <MergePage />
-    </QueryClientProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -21,9 +21,9 @@ describe('MergePage', () => {
 
   it('zeigt den Zusammenführen-Button (ActionBar)', () => {
     renderMergePage();
-    const mergeButtons = screen.getAllByRole('button').filter(
-      (btn) => /(zusammenführen|merge)/i.test(btn.textContent?.trim() ?? '')
-    );
+    const mergeButtons = screen
+      .getAllByRole('button')
+      .filter((btn) => /(zusammenführen|merge)/i.test(btn.textContent?.trim() ?? ''));
     expect(mergeButtons.length).toBeGreaterThanOrEqual(1);
   });
 });

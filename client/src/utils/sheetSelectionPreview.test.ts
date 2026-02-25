@@ -43,7 +43,14 @@ describe('matchesSheetName', () => {
 
 describe('evaluateSheetSelection', () => {
   const files: FileMeta[] = [
-    { id: 'f1', filename: 'a.xlsx', sheets: [{ name: 'Sheet1', index: 0 }, { name: 'Sheet2', index: 1 }] },
+    {
+      id: 'f1',
+      filename: 'a.xlsx',
+      sheets: [
+        { name: 'Sheet1', index: 0 },
+        { name: 'Sheet2', index: 1 },
+      ],
+    },
     { id: 'f2', filename: 'b.xlsx', sheets: [{ name: 'Data', index: 0 }] },
   ];
 

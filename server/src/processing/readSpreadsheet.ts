@@ -42,11 +42,7 @@ function sheetToRows(ws: ExcelJS.Worksheet): string[][] {
 // ODS → SheetSource[]
 // ---------------------------------------------------------------------------
 
-async function readOdsToSources(
-  buffer: Buffer,
-  filename: string,
-  selectedSheetIds?: string[]
-): Promise<SheetSource[]> {
+async function readOdsToSources(buffer: Buffer, filename: string, selectedSheetIds?: string[]): Promise<SheetSource[]> {
   const odsSheets = await parseOdsBuffer(buffer);
   const sources: SheetSource[] = [];
   for (let i = 0; i < odsSheets.length; i++) {
@@ -73,7 +69,7 @@ async function readOdsToSources(
 async function readXlsxToSources(
   buffer: Buffer,
   filename: string,
-  selectedSheetIds?: string[]
+  selectedSheetIds?: string[],
 ): Promise<SheetSource[]> {
   const workbook = await loadXlsxWorkbook(buffer);
   const sources: SheetSource[] = [];
@@ -101,7 +97,7 @@ async function readXlsxToSources(
 export async function readSpreadsheetToSources(
   buffer: Buffer,
   filename: string,
-  selectedSheetIds?: string[]
+  selectedSheetIds?: string[],
 ): Promise<SheetSource[]> {
   if (!isSpreadsheetFile(filename)) throw new Error('Kein Tabellenformat: ' + filename);
 
@@ -118,7 +114,7 @@ export async function readSpreadsheetToSources(
   if (ext === '.xls') {
     throw new Error(
       `Das Format .xls (altes Excel-Binärformat) wird nicht direkt unterstützt. ` +
-      `Bitte die Datei in Excel oder LibreOffice als .xlsx speichern und erneut hochladen.`
+        `Bitte die Datei in Excel oder LibreOffice als .xlsx speichern und erneut hochladen.`,
     );
   }
 

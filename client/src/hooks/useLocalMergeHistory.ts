@@ -59,7 +59,7 @@ export function useLocalMergeHistory() {
         setActionLoading(false);
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const downloadMerge = useCallback(async (id: string) => {
@@ -95,7 +95,7 @@ export function useLocalMergeHistory() {
         setActionLoading(false);
       }
     },
-    [refresh]
+    [refresh],
   );
 
   const clearAll = useCallback(async () => {
@@ -110,10 +110,7 @@ export function useLocalMergeHistory() {
     }
   }, [refresh]);
 
-  const hasLocalBlob = useCallback(
-    (id: string) => merges.some((m) => m.id === id),
-    [merges]
-  );
+  const hasLocalBlob = useCallback((id: string) => merges.some((m) => m.id === id), [merges]);
 
   return {
     merges,
