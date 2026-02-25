@@ -9,12 +9,39 @@ interface PreviewData {
   info: string;
 }
 
-const MAX_PREVIEW_ROWS = 8;
+const MAX_PREVIEW_ROWS = 10;
+const MAX_PREVIEW_COLS = 12;
 
-function buildPreview(
-  sources: Array<{ filename: string; sheetName: string; previewRows: string[][] }>,
-  mode: MergeMode,
-): PreviewData | null {
+interface SourceData {
+  filename: string;
+  sheetName: string;
+  previewRows: string[][];
+}
+
+function colLetter(idx: number): string {
+  let s = '';
+  let n = idx + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function extractDateLabel(filename: string): string {
+  const base = filename.replace(/\.[^.]+$/, '');
+  const m = base.match(/(\d{1,2})[._\-/](\d{1,2})[._\-/](\d{2,4})/);
+  if (m) {
+    const day = m[1]!.padStart(2, '0');
+    const month = m[2]!.padStart(2, '0');
+    const year = m[3]!.length === 2 ? '20' + m[3] : m[3]!;
+    return `${day}.${month}.${year}`;
+  }
+  return base;
+}
+
+function buildPreview(sources: SourceData[], mode: MergeMode): PreviewData | null {
   if (sources.length === 0) return null;
 
   switch (mode) {
@@ -35,16 +62,15 @@ function buildPreview(
   }
 }
 
-function previewAllToOne(sources: Array<{ filename: string; previewRows: string[][] }>): PreviewData {
+function previewAllToOne(sources: SourceData[]): PreviewData {
   const allHeaders = new Set<string>();
   for (const s of sources) {
     const h = s.previewRows[0];
-    if (h) for (const col of h) allHeaders.add(col);
+    if (h) for (const col of h) if (col) allHeaders.add(col);
   }
   const headers = Array.from(allHeaders);
   const headerIdx = new Map(headers.map((h, i) => [h, i]));
   const rows: string[][] = [];
-  let total = 0;
 
   for (const s of sources) {
     const srcHeaders = s.previewRows[0] ?? [];
@@ -56,18 +82,17 @@ function previewAllToOne(sources: Array<{ filename: string; previewRows: string[
         if (idx !== undefined) outRow[idx] = row[j] ?? '';
       });
       rows.push(outRow);
-      total++;
     }
   }
 
-  return { headers, rows, info: `${total}+` };
+  return { headers, rows, info: `${rows.length}+` };
 }
 
-function previewWithSource(sources: Array<{ filename: string; previewRows: string[][] }>): PreviewData {
+function previewWithSource(sources: SourceData[]): PreviewData {
   const allHeaders = new Set<string>();
   for (const s of sources) {
     const h = s.previewRows[0];
-    if (h) for (const col of h) allHeaders.add(col);
+    if (h) for (const col of h) if (col) allHeaders.add(col);
   }
   const headers = ['source_file', ...Array.from(allHeaders)];
   const headerIdx = new Map(headers.map((h, i) => [h, i]));
@@ -90,25 +115,30 @@ function previewWithSource(sources: Array<{ filename: string; previewRows: strin
   return { headers, rows, info: `${rows.length}+` };
 }
 
-function previewOnePerSheet(
-  sources: Array<{ filename: string; sheetName: string; previewRows: string[][] }>,
-): PreviewData {
+function previewOnePerSheet(sources: SourceData[]): PreviewData {
   const first = sources[0];
-  if (!first) return { headers: [], rows: [], info: '' };
-  const headers = [...(first.previewRows[0] ?? []), '(Sheet)'];
-  const rows = first.previewRows.slice(1).map((r) => [...r, first.filename.replace(/\.[^.]+$/, '')]);
-  return { headers, rows, info: `${sources.length} sheets` };
+  if (!first || !first.previewRows.length) return { headers: [], rows: [], info: '' };
+
+  const headers = first.previewRows[0] ?? [];
+  const rows = first.previewRows.slice(1);
+
+  return {
+    headers: [...headers],
+    rows,
+    info: `${sources.length} sheets · ${first.filename.replace(/\.[^.]+$/, '')}`,
+  };
 }
 
-function previewConsolidated(sources: Array<{ filename: string; previewRows: string[][] }>): PreviewData {
+function previewConsolidated(sources: SourceData[]): PreviewData {
   const allHeaders = new Set<string>();
   for (const s of sources) {
     const h = s.previewRows[0];
-    if (h) for (const col of h) allHeaders.add(col);
+    if (h) for (const col of h) if (col) allHeaders.add(col);
   }
   const headers = Array.from(allHeaders);
   const headerIdx = new Map(headers.map((h, i) => [h, i]));
   const sums = new Array(headers.length).fill(0);
+  const hasValues = new Array(headers.length).fill(false);
 
   for (const s of sources) {
     const srcHeaders = s.previewRows[0] ?? [];
@@ -117,52 +147,119 @@ function previewConsolidated(sources: Array<{ filename: string; previewRows: str
       srcHeaders.forEach((h, j) => {
         const idx = headerIdx.get(h);
         if (idx !== undefined) {
-          const num = Number(row[j]);
-          if (!isNaN(num) && row[j] !== '') sums[idx] += num;
+          const val = row[j] ?? '';
+          const num = Number(val);
+          if (val !== '' && !isNaN(num)) {
+            sums[idx] += num;
+            hasValues[idx] = true;
+          }
         }
       });
     }
   }
 
+  const summaryRow = headers.map((_, i) => (hasValues[i] ? String(sums[i]) : ''));
+  const rows: string[][] = [['Σ Zusammenfassung', ...summaryRow]];
+
+  for (const s of sources) {
+    const srcHeaders = s.previewRows[0] ?? [];
+    for (let i = 1; i < Math.min(s.previewRows.length, 3); i++) {
+      const row = s.previewRows[i] ?? [];
+      const outRow = new Array(headers.length).fill('');
+      srcHeaders.forEach((h, j) => {
+        const idx = headerIdx.get(h);
+        if (idx !== undefined) outRow[idx] = row[j] ?? '';
+      });
+      rows.push([`  ${s.filename}`, ...outRow]);
+    }
+  }
+
   return {
     headers: ['', ...headers],
-    rows: [['Σ', ...sums.map(String)]],
+    rows,
     info: `${sources.length} sources`,
   };
 }
 
-function previewRowMatrix(
-  sources: Array<{ filename: string; previewRows: string[][] }>,
-  withSum: boolean,
-): PreviewData {
-  const maxCols = Math.max(...sources.map((s) => Math.max(...s.previewRows.map((r) => r.length), 0)));
-  const colHeaders = Array.from({ length: maxCols }, (_, i) => String.fromCharCode(65 + (i % 26)) + '1');
-  const headers = ['Datei', ...colHeaders];
-  const rows: string[][] = [];
+/**
+ * Zeilenmatrix: each file becomes ONE row. ALL cells from the file are flattened
+ * into columns with cell-reference headers (A1, B1, ..., A2, B2, ...).
+ */
+function previewRowMatrix(sources: SourceData[], withSum: boolean): PreviewData {
+  const activeCols: Array<{ row: number; col: number; ref: string }> = [];
+  let maxRow = 0;
+  let maxCol = 0;
 
   for (const s of sources) {
-    const firstData = s.previewRows[1] ?? s.previewRows[0] ?? [];
-    rows.push([s.filename, ...firstData]);
+    for (let r = 0; r < s.previewRows.length; r++) {
+      const row = s.previewRows[r] ?? [];
+      for (let c = 0; c < row.length; c++) {
+        if (row[c] && row[c] !== '') {
+          maxRow = Math.max(maxRow, r + 1);
+          maxCol = Math.max(maxCol, c + 1);
+        }
+      }
+    }
+  }
+
+  const activeSet = new Set<string>();
+  for (const s of sources) {
+    for (let r = 0; r < maxRow; r++) {
+      const row = s.previewRows[r] ?? [];
+      for (let c = 0; c < maxCol; c++) {
+        const key = `${r},${c}`;
+        if (!activeSet.has(key) && row[c] && row[c] !== '') {
+          activeSet.add(key);
+          activeCols.push({ row: r, col: c, ref: `${colLetter(c)}${r + 1}` });
+        }
+      }
+    }
+  }
+
+  activeCols.sort((a, b) => (a.row !== b.row ? a.row - b.row : a.col - b.col));
+
+  const limitedCols = activeCols.slice(0, MAX_PREVIEW_COLS);
+  const headers = ['Datei / Datum', ...limitedCols.map((c) => c.ref)];
+  if (activeCols.length > MAX_PREVIEW_COLS) {
+    headers.push(`… +${activeCols.length - MAX_PREVIEW_COLS}`);
+  }
+
+  const rows: string[][] = [];
+  for (const s of sources) {
+    const label = extractDateLabel(s.filename);
+    const outRow = [label];
+    for (const ac of limitedCols) {
+      const val = s.previewRows[ac.row]?.[ac.col] ?? '';
+      outRow.push(val);
+    }
+    if (activeCols.length > MAX_PREVIEW_COLS) outRow.push('…');
+    rows.push(outRow);
   }
 
   if (withSum) {
-    const sumRow = ['Σ'];
-    for (let c = 0; c < maxCols; c++) {
+    const sumRow = ['Σ Gesamt'];
+    for (const ac of limitedCols) {
       let sum = 0;
       let hasNum = false;
-      for (const r of rows) {
-        const num = Number(r[c + 1]);
-        if (!isNaN(num) && r[c + 1] !== '' && r[c + 1] !== undefined) {
+      for (const s of sources) {
+        const val = s.previewRows[ac.row]?.[ac.col] ?? '';
+        const num = Number(val);
+        if (val !== '' && !isNaN(num)) {
           sum += num;
           hasNum = true;
         }
       }
       sumRow.push(hasNum ? String(sum) : '');
     }
+    if (activeCols.length > MAX_PREVIEW_COLS) sumRow.push('');
     rows.push(sumRow);
   }
 
-  return { headers, rows, info: `${sources.length} files` };
+  return {
+    headers,
+    rows,
+    info: `${sources.length} × ${activeCols.length} cells`,
+  };
 }
 
 export function MergePreview() {
@@ -173,7 +270,7 @@ export function MergePreview() {
   const [collapsed, setCollapsed] = useState(false);
 
   const sources = useMemo(() => {
-    const result: Array<{ filename: string; sheetName: string; previewRows: string[][] }> = [];
+    const result: SourceData[] = [];
     for (const f of files) {
       const info = sheetInfo[f.id];
       if (!info?.sheets?.length) continue;
@@ -239,7 +336,7 @@ export function MergePreview() {
         </button>
       </div>
 
-      <div className="overflow-x-auto max-h-64">
+      <div className="overflow-x-auto max-h-72">
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-zinc-200 dark:bg-surface-700 sticky top-0">
@@ -254,18 +351,31 @@ export function MergePreview() {
             </tr>
           </thead>
           <tbody>
-            {preview.rows.slice(0, MAX_PREVIEW_ROWS).map((row, ri) => (
-              <tr key={ri} className="hover:bg-zinc-200/50 dark:hover:bg-surface-700/50">
-                {preview.headers.map((_, ci) => (
-                  <td
-                    key={ci}
-                    className="px-2 py-1 text-zinc-600 dark:text-zinc-400 border-b border-zinc-200 dark:border-surface-600 whitespace-nowrap max-w-[200px] truncate"
-                  >
-                    {row[ci] ?? ''}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {preview.rows.slice(0, MAX_PREVIEW_ROWS).map((row, ri) => {
+              const isSumRow = row[0]?.startsWith('Σ');
+              return (
+                <tr
+                  key={ri}
+                  className={
+                    isSumRow
+                      ? 'bg-emerald-500/10 font-semibold text-emerald-400'
+                      : 'hover:bg-zinc-200/50 dark:hover:bg-surface-700/50'
+                  }
+                >
+                  {preview.headers.map((_, ci) => (
+                    <td
+                      key={ci}
+                      className={[
+                        'px-2 py-1 border-b border-zinc-200 dark:border-surface-600 whitespace-nowrap max-w-[180px] truncate',
+                        isSumRow ? 'text-emerald-400' : 'text-zinc-600 dark:text-zinc-400',
+                      ].join(' ')}
+                    >
+                      {row[ci] ?? ''}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {preview.rows.length > MAX_PREVIEW_ROWS && (
