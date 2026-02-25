@@ -245,9 +245,8 @@ test.describe('File Reordering', () => {
     await page.goto('/');
     await uploadBothFiles(page);
 
-    // Drag handle should appear on hover (has the reorder title)
-    const firstFileRow = page.getByText('cities_north.xlsx').locator('..');
-    await firstFileRow.hover();
+    // Hover over first file row to reveal drag handle
+    await page.getByText('cities_north.xlsx').first().hover();
 
     // The drag handle SVG should be in the DOM
     const dragHandle = page.locator('[title*="Reihenfolge"], [title*="order"]').first();
