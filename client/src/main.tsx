@@ -4,9 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initConsoleBanner } from './consoleBanner';
+import { useStore } from './store/useStore';
 import './index.css';
 
 initConsoleBanner();
+
+if (typeof document !== 'undefined') {
+  document.documentElement.lang = useStore.getState().locale;
+}
 
 fetch('/api/stats/pageview', { method: 'POST' }).catch(() => {});
 

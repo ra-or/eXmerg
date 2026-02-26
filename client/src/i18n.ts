@@ -1,4 +1,4 @@
-import { useStore, type Locale } from './store/useStore';
+import { useStore, getSavedLocale, type Locale } from './store/useStore';
 
 export type { Locale };
 
@@ -323,10 +323,6 @@ export function t(locale: Locale, key: string, vars?: Record<string, string | nu
 }
 
 export function getStoredLocale(): Locale {
-  if (typeof window === 'undefined') return 'de';
-  try {
-    return localStorage.getItem('eXmerg-locale') === 'en' ? 'en' : 'de';
-  } catch {
-    return 'de';
-  }
+  if (typeof window === 'undefined') return 'en';
+  return getSavedLocale();
 }

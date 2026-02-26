@@ -2,11 +2,22 @@ import { create } from 'zustand';
 import type { MergeMode, MergeOptions, SheetInfo, HistoryEntry } from 'shared';
 export type Locale = 'de' | 'en';
 
-function getSavedLocale(): Locale {
+/** Deutsch wenn Browser-Sprache Deutsch ist, sonst Englisch. */
+function getBrowserLocale(): Locale {
+  if (typeof navigator === 'undefined') return 'en';
+  const lang =
+    navigator.language || (navigator.languages && navigator.languages[0]) || '';
+  return lang.toLowerCase().startsWith('de') ? 'de' : 'en';
+}
+
+/** Gespeicherte Nutzerwahl oder Browser-Sprache (DE-Browser → de, sonst en). */
+export function getSavedLocale(): Locale {
   try {
-    return localStorage.getItem('eXmerg-locale') === 'en' ? 'en' : 'de';
+    const saved = localStorage.getItem('eXmerg-locale');
+    if (saved === 'de' || saved === 'en') return saved;
+    return getBrowserLocale();
   } catch {
-    return 'de';
+    return getBrowserLocale();
   }
 }
 
@@ -577,6 +588,7 @@ export const useStore = create<AppState>((set) => ({
     } catch {
       /* ignore */
     }
+    if (typeof document !== 'undefined') document.documentElement.lang = locale;
     set({ locale });
   },
 }));
