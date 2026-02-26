@@ -113,8 +113,8 @@ export const translations: Record<string, { de: string; en: string }> = {
   // Action bar
   'action.merge': { de: 'Zusammenführen', en: 'Merge' },
   'action.mergeSelected': { de: 'Zusammenführen ({selectedCount} ausgewählt)', en: 'Merge selected ({selectedCount})' },
-  'action.mergeAll': { de: 'Alle zusammenführen ({totalCount})', en: 'Merge all ({totalCount})' },
-  'action.mergeSelection': { de: 'Auswahl zusammenführen ({n})', en: 'Merge selection ({n})' },
+  'action.mergeAll': { de: 'Alle mergen ({totalCount})', en: 'Merge all ({totalCount})' },
+  'action.mergeSelection': { de: 'Auswahl mergen ({n})', en: 'Merge selection ({n})' },
   'action.mergeAgain': { de: 'Neu mergen', en: 'Merge again' },
   'action.uploadProgress': { de: 'Hochladen', en: 'Upload' },
   'action.processing': { de: 'Verarbeite…', en: 'Processing…' },
@@ -289,6 +289,13 @@ export const translations: Record<string, { de: string; en: string }> = {
   'templates.modeLabel.consolidated_sheets': { de: 'Konsolidierung + Einzelne Sheets', en: 'Consolidation + sheets' },
   'templates.modeLabel.row_per_file': { de: 'Zeilenmatrix mit Summen', en: 'Row matrix with totals' },
   'templates.modeLabel.row_per_file_no_sum': { de: 'Zeilenmatrix', en: 'Row matrix' },
+
+  // Privacy
+  'privacy.notice': {
+    de: 'Deine Dateien werden ausschließlich zum Zusammenführen verarbeitet und danach sofort vom Server gelöscht. Keine Registrierung, kein Tracking, keine Cookies. Einstellungen und Verlauf werden nur lokal in deinem Browser gespeichert.',
+    en: 'Your files are processed solely for merging and deleted from the server immediately afterwards. No registration, no tracking, no cookies. Settings and history are stored locally in your browser only.',
+  },
+  'privacy.title': { de: 'Datenschutz', en: 'Privacy' },
 
   // Errors / common
   'common.reset': { de: 'Alles zurücksetzen', en: 'Reset all' },
