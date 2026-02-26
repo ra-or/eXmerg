@@ -62,25 +62,26 @@ function buildPreview(sources: SourceData[], mode: MergeMode): PreviewData | nul
   }
 }
 
+/**
+ * "Alles in eine Tabelle": stacks all sheets vertically, preserving cell positions.
+ * No header detection — raw cells are placed at their original column positions.
+ */
 function previewAllToOne(sources: SourceData[]): PreviewData {
-  const allHeaders = new Set<string>();
+  let maxCols = 0;
   for (const s of sources) {
-    const h = s.previewRows[0];
-    if (h) for (const col of h) if (col) allHeaders.add(col);
+    for (const row of s.previewRows) maxCols = Math.max(maxCols, row.length);
   }
-  const headers = Array.from(allHeaders);
-  const headerIdx = new Map(headers.map((h, i) => [h, i]));
-  const rows: string[][] = [];
 
+  const limitedCols = Math.min(maxCols, MAX_PREVIEW_COLS);
+  const headers = Array.from({ length: limitedCols }, (_, i) => colLetter(i));
+  if (maxCols > MAX_PREVIEW_COLS) headers.push('…');
+
+  const rows: string[][] = [];
   for (const s of sources) {
-    const srcHeaders = s.previewRows[0] ?? [];
-    for (let i = 1; i < s.previewRows.length; i++) {
-      const row = s.previewRows[i] ?? [];
-      const outRow = new Array(headers.length).fill('');
-      srcHeaders.forEach((h, j) => {
-        const idx = headerIdx.get(h);
-        if (idx !== undefined) outRow[idx] = row[j] ?? '';
-      });
+    for (const row of s.previewRows) {
+      const outRow = row.slice(0, limitedCols).map((v) => v ?? '');
+      while (outRow.length < limitedCols) outRow.push('');
+      if (maxCols > MAX_PREVIEW_COLS) outRow.push('…');
       rows.push(outRow);
     }
   }
@@ -88,26 +89,29 @@ function previewAllToOne(sources: SourceData[]): PreviewData {
   return { headers, rows, info: `${rows.length}+` };
 }
 
+/**
+ * "Mit Herkunftsspalte": same as allToOne but with a source_file column prepended.
+ */
 function previewWithSource(sources: SourceData[]): PreviewData {
-  const allHeaders = new Set<string>();
+  let maxCols = 0;
   for (const s of sources) {
-    const h = s.previewRows[0];
-    if (h) for (const col of h) if (col) allHeaders.add(col);
+    for (const row of s.previewRows) maxCols = Math.max(maxCols, row.length);
   }
-  const headers = ['source_file', ...Array.from(allHeaders)];
-  const headerIdx = new Map(headers.map((h, i) => [h, i]));
-  const rows: string[][] = [];
 
+  const limitedCols = Math.min(maxCols, MAX_PREVIEW_COLS - 1);
+  const headers = ['source_file', ...Array.from({ length: limitedCols }, (_, i) => colLetter(i))];
+  if (maxCols > limitedCols) headers.push('…');
+
+  const rows: string[][] = [];
   for (const s of sources) {
-    const srcHeaders = s.previewRows[0] ?? [];
-    for (let i = 1; i < s.previewRows.length; i++) {
-      const row = s.previewRows[i] ?? [];
-      const outRow = new Array(headers.length).fill('');
-      outRow[0] = s.filename;
-      srcHeaders.forEach((h, j) => {
-        const idx = headerIdx.get(h);
-        if (idx !== undefined) outRow[idx] = row[j] ?? '';
-      });
+    let isFirst = true;
+    for (const row of s.previewRows) {
+      const outRow = [isFirst ? s.filename : ''];
+      isFirst = false;
+      const cells = row.slice(0, limitedCols).map((v) => v ?? '');
+      while (cells.length < limitedCols) cells.push('');
+      outRow.push(...cells);
+      if (maxCols > limitedCols) outRow.push('…');
       rows.push(outRow);
     }
   }
@@ -115,70 +119,93 @@ function previewWithSource(sources: SourceData[]): PreviewData {
   return { headers, rows, info: `${rows.length}+` };
 }
 
+/**
+ * "Eine Datei = ein Sheet": each file gets its own sheet.
+ * Preview shows the first file's raw data as it would appear in its sheet.
+ */
 function previewOnePerSheet(sources: SourceData[]): PreviewData {
   const first = sources[0];
   if (!first || !first.previewRows.length) return { headers: [], rows: [], info: '' };
 
-  const headers = first.previewRows[0] ?? [];
-  const rows = first.previewRows.slice(1);
+  let maxCols = 0;
+  for (const row of first.previewRows) maxCols = Math.max(maxCols, row.length);
+
+  const limitedCols = Math.min(maxCols, MAX_PREVIEW_COLS);
+  const sheetName = first.filename.replace(/\.[^.]+$/, '');
+  const headers = Array.from({ length: limitedCols }, (_, i) => colLetter(i));
+
+  const rows = first.previewRows.map((row) => {
+    const outRow = row.slice(0, limitedCols).map((v) => v ?? '');
+    while (outRow.length < limitedCols) outRow.push('');
+    return outRow;
+  });
 
   return {
-    headers: [...headers],
+    headers,
     rows,
-    info: `${sources.length} sheets · ${first.filename.replace(/\.[^.]+$/, '')}`,
+    info: `${sources.length} sheets · ${sheetName}`,
   };
 }
 
+/**
+ * "Konsolidierung": cell-by-cell sum of numeric values across all sources,
+ * then individual file data below.
+ */
 function previewConsolidated(sources: SourceData[]): PreviewData {
-  const allHeaders = new Set<string>();
+  let maxCols = 0;
+  let maxRows = 0;
   for (const s of sources) {
-    const h = s.previewRows[0];
-    if (h) for (const col of h) if (col) allHeaders.add(col);
+    for (const row of s.previewRows) maxCols = Math.max(maxCols, row.length);
+    maxRows = Math.max(maxRows, s.previewRows.length);
   }
-  const headers = Array.from(allHeaders);
-  const headerIdx = new Map(headers.map((h, i) => [h, i]));
-  const sums = new Array(headers.length).fill(0);
-  const hasValues = new Array(headers.length).fill(false);
+
+  const limitedCols = Math.min(maxCols, MAX_PREVIEW_COLS - 1);
+  const headers = ['', ...Array.from({ length: limitedCols }, (_, i) => colLetter(i))];
+
+  // Build cell-by-cell sums
+  const sums: number[][] = Array.from({ length: maxRows }, () => new Array(limitedCols).fill(0));
+  const hasNum: boolean[][] = Array.from({ length: maxRows }, () => new Array(limitedCols).fill(false));
+  const textFallback: string[][] = Array.from({ length: maxRows }, () => new Array(limitedCols).fill(''));
 
   for (const s of sources) {
-    const srcHeaders = s.previewRows[0] ?? [];
-    for (let i = 1; i < s.previewRows.length; i++) {
-      const row = s.previewRows[i] ?? [];
-      srcHeaders.forEach((h, j) => {
-        const idx = headerIdx.get(h);
-        if (idx !== undefined) {
-          const val = row[j] ?? '';
-          const num = Number(val);
-          if (val !== '' && !isNaN(num)) {
-            sums[idx] += num;
-            hasValues[idx] = true;
-          }
+    for (let r = 0; r < s.previewRows.length; r++) {
+      const row = s.previewRows[r] ?? [];
+      for (let c = 0; c < Math.min(row.length, limitedCols); c++) {
+        const val = row[c] ?? '';
+        const num = Number(val);
+        if (val !== '' && !isNaN(num)) {
+          sums[r]![c] += num;
+          hasNum[r]![c] = true;
+        } else if (val !== '' && !textFallback[r]![c]) {
+          textFallback[r]![c] = val;
         }
-      });
+      }
     }
   }
 
-  const summaryRow = headers.map((_, i) => (hasValues[i] ? String(sums[i]) : ''));
-  const rows: string[][] = [['Σ Zusammenfassung', ...summaryRow]];
+  const rows: string[][] = [];
+  // Summary rows (first few rows of summed data)
+  for (let r = 0; r < Math.min(maxRows, 6); r++) {
+    const outRow = [r === 0 ? 'Σ Zusammenfassung' : ''];
+    for (let c = 0; c < limitedCols; c++) {
+      outRow.push(hasNum[r]![c] ? String(sums[r]![c]) : (textFallback[r]![c] ?? ''));
+    }
+    rows.push(outRow);
+  }
 
-  for (const s of sources) {
-    const srcHeaders = s.previewRows[0] ?? [];
-    for (let i = 1; i < Math.min(s.previewRows.length, 3); i++) {
-      const row = s.previewRows[i] ?? [];
-      const outRow = new Array(headers.length).fill('');
-      srcHeaders.forEach((h, j) => {
-        const idx = headerIdx.get(h);
-        if (idx !== undefined) outRow[idx] = row[j] ?? '';
-      });
-      rows.push([`  ${s.filename}`, ...outRow]);
+  // Then first source's data as reference
+  if (sources[0]) {
+    rows.push([`── ${sources[0].filename}`, ...new Array(limitedCols).fill('')]);
+    for (const row of sources[0].previewRows.slice(0, 4)) {
+      const outRow = [''];
+      const cells = row.slice(0, limitedCols).map((v) => v ?? '');
+      while (cells.length < limitedCols) cells.push('');
+      outRow.push(...cells);
+      rows.push(outRow);
     }
   }
 
-  return {
-    headers: ['', ...headers],
-    rows,
-    info: `${sources.length} sources`,
-  };
+  return { headers, rows, info: `${sources.length} sources` };
 }
 
 /**
