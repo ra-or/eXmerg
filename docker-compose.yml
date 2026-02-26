@@ -6,8 +6,8 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
-      - UPLOAD_DIR=/uploads^
-      - STATS_TOKEN=dein_geheimes_token
+      - UPLOAD_DIR=/uploads
+      - STATS_TOKEN=b33-4c10-9d4b-4990f5393ec0
     ports:
       - 127.0.0.1:3003:3003
     volumes:
