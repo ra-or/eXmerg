@@ -30,3 +30,8 @@ uploads/
 # playwright
 test-results/
 playwright-report/
+
+# stasts
+stats.json
+
+
