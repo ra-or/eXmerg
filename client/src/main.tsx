@@ -8,6 +8,8 @@ import './index.css';
 
 initConsoleBanner();
 
+fetch('/api/stats/pageview', { method: 'POST' }).catch(() => {});
+
 const queryClient = new QueryClient();
 const root = document.getElementById('root');
 if (root) {

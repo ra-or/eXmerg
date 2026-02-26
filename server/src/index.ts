@@ -5,6 +5,7 @@ import express from 'express';
 import { config } from './config/index.js';
 import { startTempCleanup } from './processing/tempCleanup.js';
 import { createApp } from './app.js';
+import { initStats } from './services/statsService.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDistPath = path.resolve(__dirname, '../../client/dist');
@@ -38,9 +39,13 @@ if (fs.existsSync(clientDistPath)) {
   });
 }
 
-app.listen(config.port, () => {
+app.listen(config.port, async () => {
   console.log('Server läuft auf Port', config.port);
   const usedMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
   console.log(`Heap-Limit: ${process.env.NODE_OPTIONS ?? 'Standard'} | Aktuell: ${usedMB} MB`);
   startTempCleanup(config.uploadDir, config.tempFileTtlSeconds);
+  await initStats(config.uploadDir);
+  console.log(
+    `Stats: ${process.env.STATS_TOKEN ? '/api/stats/dashboard?token=...' : 'STATS_TOKEN nicht gesetzt – Dashboard deaktiviert'}`,
+  );
 });
