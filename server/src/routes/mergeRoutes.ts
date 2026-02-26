@@ -9,6 +9,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { config } from '../config/index.js';
 import { getSheetInfo } from '../services/mergeService.js';
+import {
+  recordPageView,
+  recordUpload,
+  recordMerge,
+  recordMergeError,
+  recordDownload,
+  getStats,
+  renderDashboardHtml,
+} from '../services/statsService.js';
 import type { MergeOptions, MergeErrorResponse, SheetsResponse, MergeJobResponse, MergeProgressEvent } from 'shared';
 import { isSpreadsheetFile } from 'shared';
 import { validateExtension, validateFileSize, validateTotalSize, getValidationErrorMessage } from 'shared';
@@ -273,6 +282,35 @@ router.get('/health', (_req: Request, res: Response) => {
   res.status(200).send('ok');
 });
 
+/** POST /api/stats/pageview – Track a page view (called by the client). */
+router.post('/stats/pageview', (_req: Request, res: Response) => {
+  recordPageView();
+  res.status(204).send();
+});
+
+/** GET /api/stats – JSON stats (requires STATS_TOKEN). */
+router.get('/stats', (req: Request, res: Response) => {
+  const token = (req.query.token as string) ?? req.headers['x-stats-token'];
+  const expected = process.env.STATS_TOKEN;
+  if (!expected || token !== expected) {
+    res.status(401).json({ error: 'Unauthorized. Set STATS_TOKEN env and pass ?token=...' });
+    return;
+  }
+  res.json(getStats());
+});
+
+/** GET /api/stats/dashboard – HTML dashboard (requires STATS_TOKEN). */
+router.get('/stats/dashboard', (req: Request, res: Response) => {
+  const token = (req.query.token as string) ?? req.headers['x-stats-token'];
+  const expected = process.env.STATS_TOKEN;
+  if (!expected || token !== expected) {
+    res.status(401).json({ error: 'Unauthorized. Set STATS_TOKEN env and pass ?token=...' });
+    return;
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderDashboardHtml(getStats()));
+});
+
 /** POST /api/sheets – Sheet-Namen + Vorschau-Zeilen einer Datei zurückgeben. */
 router.post(
   '/sheets',
@@ -377,6 +415,8 @@ router.post(
       return;
     }
 
+    const ext = path.extname(file.originalname).toLowerCase();
+    recordUpload(ext, file.size);
     res.json({ fileId: path.basename(file.path), filename: file.originalname });
   }),
 );
@@ -521,6 +561,7 @@ router.post(
     }
 
     const mergeId = uuidv4();
+    const mergeStartTime = Date.now();
     const job: MergeJob = { status: 'queued', events: [], clients: new Set(), createdAt: Date.now() };
     activeJobs.set(mergeId, job);
 
@@ -579,6 +620,7 @@ router.post(
           (isOds ? '&fmt=ods' : '');
 
         job.status = 'done';
+        recordMerge(options.mode, spreadsheetFiles.length, Date.now() - mergeStartTime);
         emitJobEvent(mergeId, { type: 'complete', downloadUrl, filename: outFilename, warnings });
         // SSE-Clients schließen
         for (const c of job.clients) {
@@ -591,6 +633,7 @@ router.post(
         job.clients.clear();
       } catch (err) {
         job.status = 'error';
+        recordMergeError();
         const msg = err instanceof Error ? err.message : 'Merge fehlgeschlagen.';
         emitJobEvent(mergeId, { type: 'error', message: msg });
         for (const c of job.clients) {
@@ -712,6 +755,7 @@ router.get(
         console.warn('[download] WARNING: sent bytes < file size, file may be truncated');
       }
       if (!sendSucceeded) return;
+      recordDownload();
       fs.unlink(fullPath)
         .then(() => {
           console.log('[download] file sent and removed:', fullPath);

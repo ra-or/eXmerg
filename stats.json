@@ -1,0 +1,32 @@
+{
+  "totalPageViews": 19,
+  "totalUploads": 17,
+  "totalMerges": 8,
+  "totalDownloads": 8,
+  "totalErrors": 0,
+  "firstSeen": "2026-02-26",
+  "days": [
+    {
+      "date": "2026-02-26",
+      "pageViews": 19,
+      "uploads": 17,
+      "uploadBytes": 90157,
+      "uploadsByType": {
+        ".xlsx": 14,
+        ".csv": 2,
+        ".tsv": 1
+      },
+      "merges": 8,
+      "mergesByMode": {
+        "all_to_one_sheet": 1,
+        "one_file_per_sheet": 1,
+        "consolidated_sheets": 5,
+        "row_per_file_no_sum": 1
+      },
+      "mergeFiles": 16,
+      "mergeDurationMs": 3174,
+      "mergeErrors": 0,
+      "downloads": 8
+    }
+  ]
+}
